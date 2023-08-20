@@ -151,6 +151,45 @@ export function main() {
    */
   const render = (s: State) => {
     // Add blocks to the main grid canvas
+    const blockGroup = createSvgElement(svg.namespaceURI, "g");
+
+    const block1 = createSvgElement(svg.namespaceURI, "rect", {
+      height: `${Block.HEIGHT}`,
+      width: `${Block.WIDTH}`,
+      x: `${Block.WIDTH * 3}`,
+      y: `${Block.HEIGHT * 15}`,
+      style: "fill: blue; stroke: black; stroke-width: 2px;",
+    });
+    blockGroup.appendChild(block1);
+  
+    const block2 = createSvgElement(svg.namespaceURI, "rect", {
+      height: `${Block.HEIGHT}`,
+      width: `${Block.WIDTH}`,
+      x: `${Block.WIDTH * 3}`,
+      y: `${Block.HEIGHT * 16}`,
+      style: "fill: blue; stroke: black; stroke-width: 2px;",
+    });
+    blockGroup.appendChild(block2);
+  
+    const block3 = createSvgElement(svg.namespaceURI, "rect", {
+      height: `${Block.HEIGHT}`,
+      width: `${Block.WIDTH}`,
+      x: `${Block.WIDTH * 4}`,
+      y: `${Block.HEIGHT * 15}`,
+      style: "fill: blue; stroke: black; stroke-width: 2px;",
+    });
+    blockGroup.appendChild(block3);
+  
+    const block4 = createSvgElement(svg.namespaceURI, "rect", {
+      height: `${Block.HEIGHT}`,
+      width: `${Block.WIDTH}`,
+      x: `${Block.WIDTH * 4}`,
+      y: `${Block.HEIGHT * 16}`,
+      style: "fill: blue; stroke: black; stroke-width: 2px;",
+    });
+    blockGroup.appendChild(block4);
+  
+    svg.appendChild(blockGroup);
     const cube = createSvgElement(svg.namespaceURI, "rect", {
       height: `${Block.HEIGHT}`,
       width: `${Block.WIDTH}`,
