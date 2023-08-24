@@ -137,11 +137,34 @@ export function main() {
   const right$ = fromKey("KeyD");
   const down$ = fromKey("KeyS");
 
+
   /** Observables */
 
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
-
+  const boardState = [[0,0,0,0,1,1,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,1,1,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0]]
+  const generateBlock = (boardState: Array<number>) => {
+    return [[0,0,0,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,0,0,0]];
+  }
   /**
    * Renders the current state to the canvas.
    *
@@ -151,61 +174,14 @@ export function main() {
    */
   const render = (s: State) => {
     // Add blocks to the main grid canvas
-    const blockGroup = createSvgElement(svg.namespaceURI, "g");
-
-    const block1 = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * 3}`,
-      y: `${Block.HEIGHT * 15}`,
-      style: "fill: blue; stroke: black; stroke-width: 2px;",
-    });
-    blockGroup.appendChild(block1);
-  
-    const block2 = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * 3}`,
-      y: `${Block.HEIGHT * 16}`,
-      style: "fill: blue; stroke: black; stroke-width: 2px;",
-    });
-    blockGroup.appendChild(block2);
-  
-    const block3 = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * 4}`,
-      y: `${Block.HEIGHT * 15}`,
-      style: "fill: blue; stroke: black; stroke-width: 2px;",
-    });
-    blockGroup.appendChild(block3);
-  
-    const block4 = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * 4}`,
-      y: `${Block.HEIGHT * 16}`,
-      style: "fill: blue; stroke: black; stroke-width: 2px;",
-    });
-    blockGroup.appendChild(block4);
-  
-    svg.appendChild(blockGroup);
-    const cube = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: "0",
-      y: "0",
-      style: "fill: green",
-    });
-    svg.appendChild(cube);
-    const cube2 = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * (3 - 1)}`,
-      y: `${Block.HEIGHT * (20 - 1)}`,
-      style: "fill: red",
-    });
-    svg.appendChild(cube2);
+    // const cube = createSvgElement(svg.namespaceURI, "rect", {
+    //   height: `${Block.HEIGHT}`,
+    //   width: `${Block.WIDTH}`,
+    //   x: `${Block.WIDTH * i}`,
+    //   y: `${Block.HEIGHT * j}`,
+    //   style: "fill: red",
+    // });
+    // svg.appendChild(cube);
     const cube3 = createSvgElement(svg.namespaceURI, "rect", {
       height: `${Block.HEIGHT}`,
       width: `${Block.WIDTH}`,
@@ -214,7 +190,6 @@ export function main() {
       style: "fill: red",
     });
     svg.appendChild(cube3);
-
     // Add a block to the preview canvas
     const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
       height: `${Block.HEIGHT}`,
@@ -225,8 +200,37 @@ export function main() {
     });
     preview.appendChild(cubePreview);
   };
+// Create an observable for iterating through the boardState
+const iterateBoard$ = tick$.pipe(
+  map(() =>
+    boardState.flatMap((row, i) =>
+      row.map((cell, j) => ({
+        x: `${Block.WIDTH * j}`,
+        y: `${Block.HEIGHT * i}`,
+        style: cell === 0 ? "fill: #DAB483; stroke-width: 0px;" : "fill: green; stroke: black; stroke-width: 2px;"
+      }))
+    )
+  )
+);
 
-  const source$ = merge(tick$)
+// Subscribe to iterateBoard$ for rendering
+iterateBoard$.subscribe(svgDataArray => {
+  svg.innerHTML = ""; // Clear the existing SVG content
+
+  svgDataArray.forEach(svgData => {
+    if (svgData) { // Check if svgData is defined
+      const cube = createSvgElement(svg.namespaceURI, "rect", {
+        height: `${Block.HEIGHT}`,
+        width: `${Block.WIDTH}`,
+        x: svgData.x,
+        y: svgData.y,
+        style: svgData.style
+      });
+      svg.appendChild(cube);
+    }
+  });
+});
+  const source$ = merge(tick$, left$, right$, down$)
     .pipe(scan((s: State) => ({ gameEnd: true }), initialState))
     .subscribe((s: State) => {
       render(s);
