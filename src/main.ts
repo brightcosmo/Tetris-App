@@ -48,11 +48,49 @@ type Event = "keydown" | "keyup" | "keypress";
 /** State processing */
 
 type State = Readonly<{
-  gameEnd: boolean;
+  gameEnd: boolean,
+  boardState: number[][],
+  currentBlock: BlockGroup
 }>;
+
+type Block = Readonly<{
+  x: number,
+  y: number
+}>
+
+type BlockGroup = Readonly<{
+  group: Block[]
+}>
+
+const squareBlock: BlockGroup = {
+  group: [{x:0, y:0},{x:0, y:0},{x:0, y:0},{x:0, y:0}]
+}
+
+const grid: number[][] = [[0,0,0,0,1,1,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0]]
 
 const initialState: State = {
   gameEnd: false,
+  boardState: grid,
+  currentBlock: squareBlock
 } as const;
 
 /**
@@ -61,7 +99,7 @@ const initialState: State = {
  * @param s Current state
  * @returns Updated state
  */
-const tick = (s: State) => s;
+const tick = (s: State) => ();
 
 /** Rendering (side effects) */
 
@@ -142,26 +180,7 @@ export function main() {
 
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
-  const boardState = [[0,0,0,0,1,1,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,1,1,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0]]
+
   const generateBlock = (boardState: Array<number>) => {
     return [[0,0,0,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,0,0,0]];
   }
@@ -199,37 +218,37 @@ export function main() {
       style: "fill: green",
     });
     preview.appendChild(cubePreview);
-  };
-// Create an observable for iterating through the boardState
-const iterateBoard$ = tick$.pipe(
-  map(() =>
-    boardState.flatMap((row, i) =>
-      row.map((cell, j) => ({
-        x: `${Block.WIDTH * j}`,
-        y: `${Block.HEIGHT * i}`,
-        style: cell === 0 ? "fill: #DAB483; stroke-width: 0px;" : "fill: green; stroke: black; stroke-width: 2px;"
-      }))
-    )
-  )
-);
+//   };
+// // Create an observable for iterating through the boardState
+// const iterateBoard$ = tick$.pipe(
+//   map(() =>
+//     boardState.flatMap((row, i) =>
+//       row.map((cell, j) => ({
+//         x: `${Block.WIDTH * j}`,
+//         y: `${Block.HEIGHT * i}`,
+//         style: cell === 0 ? "fill: #DAB483; stroke-width: 0px; z-index: 1" : "fill: green; stroke: black; stroke-width: 2px; z-index: 2"
+//       }))
+//     )
+//   )
+// );
 
-// Subscribe to iterateBoard$ for rendering
-iterateBoard$.subscribe(svgDataArray => {
-  svg.innerHTML = ""; // Clear the existing SVG content
+// // Subscribe to iterateBoard$ for rendering
+// iterateBoard$.subscribe(svgDataArray => {
+//   svg.innerHTML = ""; // Clear the existing SVG content
 
-  svgDataArray.forEach(svgData => {
-    if (svgData) { // Check if svgData is defined
-      const cube = createSvgElement(svg.namespaceURI, "rect", {
-        height: `${Block.HEIGHT}`,
-        width: `${Block.WIDTH}`,
-        x: svgData.x,
-        y: svgData.y,
-        style: svgData.style
-      });
-      svg.appendChild(cube);
-    }
-  });
-});
+//   svgDataArray.forEach(svgData => {
+//     if (svgData) { // Check if svgData is defined
+//       const cube = createSvgElement(svg.namespaceURI, "rect", {
+//         height: `${Block.HEIGHT}`,
+//         width: `${Block.WIDTH}`,
+//         x: svgData.x,
+//         y: svgData.y,
+//         style: svgData.style
+//       });
+//       svg.appendChild(cube);
+//     }
+//   });
+// });
   const source$ = merge(tick$, left$, right$, down$)
     .pipe(scan((s: State) => ({ gameEnd: true }), initialState))
     .subscribe((s: State) => {
