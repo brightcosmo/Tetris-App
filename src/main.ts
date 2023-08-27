@@ -32,7 +32,7 @@ const Constants = {
   GRID_HEIGHT: 20,
 } as const;
 
-const Block = {
+const BlockConstants = {
   WIDTH: Viewport.CANVAS_WIDTH / Constants.GRID_WIDTH,
   HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
 };
@@ -51,22 +51,111 @@ type State = Readonly<{
   gameEnd: boolean,
   boardState: number[][],
   currentBlock: BlockGroup
+  nextBlock: BlockGroup,
+  RNG: LazySequence<number>
 }>;
 
 type Block = Readonly<{
   x: number,
-  y: number
+  y: number,
+  style: String
 }>
 
 type BlockGroup = Readonly<{
   group: Block[]
 }>
 
-const squareBlock: BlockGroup = {
-  group: [{x:0, y:0},{x:0, y:0},{x:0, y:0},{x:0, y:0}]
+interface LazySequence<T> {
+  value: T;
+  next():LazySequence<T>;
 }
 
-const grid: number[][] = [[0,0,0,0,1,1,0,0,0,0],
+// CSS Styles for blocks
+const aquaStyle: String = "fill: #00ffff; stroke: black; stroke-width: 2px; z-index: 2"
+const yellowStyle: String = "fill: #ffff00; stroke: black; stroke-width: 2px; z-index: 2"
+const purpleStyle: String = "fill: #ff00ff; stroke: black; stroke-width: 2px; z-index: 2"
+const blueStyle: String = "fill: #0000ff; stroke: black; stroke-width: 2px; z-index: 2"
+const orangeStyle: String = "fill: #ff8100; stroke: black; stroke-width: 2px; z-index: 2"
+const greenStyle: String = "fill: #00ff00; stroke: black; stroke-width: 2px; z-index: 2"
+const redStyle: String = "fill: #ff0000; stroke: black; stroke-width: 2px; z-index: 2"
+
+const IBLOCK: BlockGroup = {
+  group: [{x: 4, y: 0, style: aquaStyle}, {x: 5, y: 0, style: aquaStyle}, {x: 6, y: 0, style: aquaStyle}, {x: 7, y: 0, style: aquaStyle}]
+}
+
+const OBLOCK: BlockGroup = {
+  group: [{x: 4, y: 0, style: yellowStyle}, {x: 5, y: 0, style: yellowStyle}, {x: 4, y: 1, style: yellowStyle}, {x: 5, y: 1, style: yellowStyle}]
+}
+
+const TBLOCK: BlockGroup = {
+  group: [{x: 4, y: 0, style: purpleStyle}, {x: 3, y: 1, style: purpleStyle}, {x: 4, y: 1, style: purpleStyle}, {x: 5, y: 1, style: purpleStyle}]
+}
+
+const JBLOCK: BlockGroup = {
+  group: [{x: 3, y: 0, style: blueStyle}, {x: 3, y: 1, style: blueStyle}, {x: 4, y: 1, style: blueStyle}, {x: 5, y: 1, style: blueStyle}]
+}
+
+const LBLOCK: BlockGroup = {
+  group: [{x: 5, y: 0, style: orangeStyle}, {x: 3, y: 1, style: orangeStyle}, {x: 4, y: 1, style: orangeStyle}, {x: 5, y: 1, style: orangeStyle}]
+}
+
+const SBLOCK: BlockGroup = {
+  group: [{x: 4, y: 0, style: greenStyle}, {x: 5, y: 0, style: greenStyle}, {x: 3, y: 1, style: greenStyle}, {x: 4, y: 1, style: greenStyle}]
+}
+
+const ZBLOCK: BlockGroup = {
+  group: [{x: 3, y: 0, style: redStyle}, {x: 4, y: 0, style: redStyle}, {x: 4, y: 1, style: redStyle}, {x: 5, y: 1, style: redStyle}]
+}
+
+const randomPiece = (num: number): BlockGroup => {
+  switch (num) {
+    case 1:
+        return IBLOCK;
+    case 2:
+        return OBLOCK;
+    case 3:
+        return TBLOCK;
+    case 4:
+        return JBLOCK;
+    case 5:
+        return LBLOCK;
+    case 6:
+        return SBLOCK;
+    default:
+        return ZBLOCK;
+  }
+}
+
+abstract class RNG {
+  // LCG using GCC's constants
+  private static m = 0x80000000; // 2**31
+  private static a = 1103515245;
+  private static c = 12345;
+
+  /**
+   * Call `hash` repeatedly to generate the sequence of hashes.
+   * @param seed
+   * @returns a hash of the seed
+   */
+  public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
+
+  /**
+   * Takes hash value and scales it to the range [-1, 1]
+   */
+  public static scale = (hash: number) => (2 * hash) / (RNG.m - 1) - 1;
+}
+
+// functions to move blocks
+const updateBlock = (block: BlockGroup, movement: (block: Block) => Block) => ({group: block.group.map(movement)})
+
+const down = ({x, y, style}: Block): Block => ({x: x, y: y+1, style: style});
+const left = ({x, y, style}: Block): Block => ({x: x-1, y: y, style: style});
+const right = ({x, y, style}: Block): Block => ({x: x+1, y: y, style: style});
+
+// function to detect collision
+const checkCollision = (grid: number[][], block: BlockGroup) => block.group.some((block: Block) => grid[block.y][block.x] === 1);
+
+const grid: number[][] = [[0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
@@ -90,8 +179,12 @@ const grid: number[][] = [[0,0,0,0,1,1,0,0,0,0],
 const initialState: State = {
   gameEnd: false,
   boardState: grid,
-  currentBlock: squareBlock
+  currentBlock: randomPiece
 } as const;
+
+interface Action {
+  apply(s: State): State;
+}
 
 /**
  * Updates the state by proceeding with one time step.
@@ -99,9 +192,38 @@ const initialState: State = {
  * @param s Current state
  * @returns Updated state
  */
-const tick = (s: State) => ();
+// const tick = (s: State) => s;
+class Tick implements Action{
+  constructor(public readonly tick: number){}
+
+  apply(s: State): State{
+    const updatedBlock: BlockGroup = {group: s.currentBlock.group.map(({x, y}: Block): Block => ({x: x, y: y+1, style: greenStyle}))}
+    const updatedBoard: number[][] = moveBlock(s.boardState, s.currentBlock, updatedBlock)
+    return { ...s, currentBlock: updatedBlock, boardState: updatedBoard}
+  };
+}
+
+const moveBlock = (grid: number[][], oldBlock: BlockGroup, newBlock: BlockGroup): number[][] => {
+  return grid.map((row: number[], rowIndex: number) => row.map((cell: number, columnIndex: number) => {
+    const isOldPieceCell: boolean = oldBlock.group.some((block: Block) => block.x === columnIndex && block.y === rowIndex);
+    const isNewPieceCell: boolean = newBlock.group.some((block: Block) => block.x === columnIndex && block.y === rowIndex);
+    if (isOldPieceCell && isNewPieceCell){
+      return 1;
+    }
+    else if (isOldPieceCell){
+      return 0;
+    }
+    else if (isNewPieceCell){
+      return 1;
+    }
+    else{
+      return cell;
+    }
+  }))
+}
 
 /** Rendering (side effects) */
+const reduceState = (s:State, change: Action) => change.apply(s);
 
 /**
  * Displays a SVG element on the canvas. Brings to foreground.
@@ -181,9 +303,6 @@ export function main() {
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
 
-  const generateBlock = (boardState: Array<number>) => {
-    return [[0,0,0,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,0,0,0]];
-  }
   /**
    * Renders the current state to the canvas.
    *
@@ -192,65 +311,33 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-    // Add blocks to the main grid canvas
-    // const cube = createSvgElement(svg.namespaceURI, "rect", {
-    //   height: `${Block.HEIGHT}`,
-    //   width: `${Block.WIDTH}`,
-    //   x: `${Block.WIDTH * i}`,
-    //   y: `${Block.HEIGHT * j}`,
-    //   style: "fill: red",
-    // });
-    // svg.appendChild(cube);
-    const cube3 = createSvgElement(svg.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * (4 - 1)}`,
-      y: `${Block.HEIGHT * (20 - 1)}`,
-      style: "fill: red",
+    const blockObjects = s.boardState.flatMap((row, i) =>
+        row.map((cell, j) => ({
+          x: BlockConstants.WIDTH * j,
+          y: BlockConstants.HEIGHT * i,
+          style: cell === 0 ? "fill: #DAB483; stroke-width: 0px; z-index: 1" : "fill: green; stroke: black; stroke-width: 2px; z-index: 2"
+        })));
+    
+    blockObjects.forEach((block: Block): void => {
+      const SVGelem = createSvgElement(svg.namespaceURI, "rect", {
+        height: `${BlockConstants.HEIGHT}`,
+        width: `${BlockConstants.WIDTH}`,
+        x: `${block.x}`,
+        y: `${block.y}`,
+        style: `${block.style}`,
+      });
+      svg.appendChild(SVGelem);
     });
-    svg.appendChild(cube3);
-    // Add a block to the preview canvas
-    const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * 2}`,
-      y: `${Block.HEIGHT}`,
-      style: "fill: green",
-    });
-    preview.appendChild(cubePreview);
-//   };
-// // Create an observable for iterating through the boardState
-// const iterateBoard$ = tick$.pipe(
-//   map(() =>
-//     boardState.flatMap((row, i) =>
-//       row.map((cell, j) => ({
-//         x: `${Block.WIDTH * j}`,
-//         y: `${Block.HEIGHT * i}`,
-//         style: cell === 0 ? "fill: #DAB483; stroke-width: 0px; z-index: 1" : "fill: green; stroke: black; stroke-width: 2px; z-index: 2"
-//       }))
-//     )
-//   )
-// );
+  };
 
-// // Subscribe to iterateBoard$ for rendering
-// iterateBoard$.subscribe(svgDataArray => {
-//   svg.innerHTML = ""; // Clear the existing SVG content
 
-//   svgDataArray.forEach(svgData => {
-//     if (svgData) { // Check if svgData is defined
-//       const cube = createSvgElement(svg.namespaceURI, "rect", {
-//         height: `${Block.HEIGHT}`,
-//         width: `${Block.WIDTH}`,
-//         x: svgData.x,
-//         y: svgData.y,
-//         style: svgData.style
-//       });
-//       svg.appendChild(cube);
-//     }
-//   });
-// });
-  const source$ = merge(tick$, left$, right$, down$)
-    .pipe(scan((s: State) => ({ gameEnd: true }), initialState))
+  const source$ = merge(tick$)
+    .pipe(
+      map((tick_val: number) => new Tick(tick_val)),
+      scan(reduceState, initialState)
+      )
+
+
     .subscribe((s: State) => {
       render(s);
 
