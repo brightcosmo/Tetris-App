@@ -14,7 +14,7 @@
 
 import "./style.css";
 
-import { fromEvent, interval, merge } from "rxjs";
+import { fromEvent, interval, merge,Observable } from "rxjs";
 import { map, filter, scan } from "rxjs/operators";
 
 /** Constants */
@@ -58,7 +58,7 @@ type State = Readonly<{
 type Block = Readonly<{
   x: number,
   y: number,
-  style: String
+  style: string
 }>
 
 type BlockGroup = Readonly<{
@@ -70,14 +70,57 @@ interface LazySequence<T> {
   next():LazySequence<T>;
 }
 
+
+abstract class RNG {
+  // LCG using GCC's constants
+  private static m = 0x80000000; // 2**31
+  private static a = 1103515245;
+  private static c = 12345;
+
+  /**
+   * Call `hash` repeatedly to generate the sequence of hashes.
+   * @param seed
+   * @returns a hash of the seed
+   */
+  public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
+
+  /**
+   * Takes hash value and scales it to the range [-1, 1]
+   */
+  public static scale = (hash: number) => hash / (RNG.m - 1);
+}
+class RandomNumberSequence implements LazySequence<number> {
+  private seed: number;
+
+  constructor(seed: number) {
+    this.seed = seed;
+    this.value = Math.floor(RNG.scale(RNG.hash(this.seed)) * 7) + 1;
+    console.log(this.value)
+  }
+
+  value: number;
+
+  next(): RandomNumberSequence {
+    this.seed = RNG.hash(this.seed);
+    return new RandomNumberSequence(this.seed);
+  }
+}
+
+// Usage
+const seed = 29013;
+const sequence: LazySequence<number> = new RandomNumberSequence(29013);
+
+
 // CSS Styles for blocks
-const aquaStyle: String = "fill: #00ffff; stroke: black; stroke-width: 2px; z-index: 2"
-const yellowStyle: String = "fill: #ffff00; stroke: black; stroke-width: 2px; z-index: 2"
-const purpleStyle: String = "fill: #ff00ff; stroke: black; stroke-width: 2px; z-index: 2"
-const blueStyle: String = "fill: #0000ff; stroke: black; stroke-width: 2px; z-index: 2"
-const orangeStyle: String = "fill: #ff8100; stroke: black; stroke-width: 2px; z-index: 2"
-const greenStyle: String = "fill: #00ff00; stroke: black; stroke-width: 2px; z-index: 2"
-const redStyle: String = "fill: #ff0000; stroke: black; stroke-width: 2px; z-index: 2"
+const aquaStyle: string = "fill: #00ffff; stroke: black; stroke-width: 2px; z-index: 2"
+const yellowStyle: string = "fill: #ffff00; stroke: black; stroke-width: 2px; z-index: 2"
+const purpleStyle: string = "fill: #ff00ff; stroke: black; stroke-width: 2px; z-index: 2"
+const blueStyle: string = "fill: #0000ff; stroke: black; stroke-width: 2px; z-index: 2"
+const orangeStyle: string = "fill: #ff8100; stroke: black; stroke-width: 2px; z-index: 2"
+const greenStyle: string = "fill: #00ff00; stroke: black; stroke-width: 2px; z-index: 2"
+const redStyle: string = "fill: #ff0000; stroke: black; stroke-width: 2px; z-index: 2"
+const greyStyle: string = "fill: #808080; stroke: black; stroke-width: 2px; z-index: 2"
+const background: string = "fill: #DAB483; stroke-width: 0px;"
 
 const IBLOCK: BlockGroup = {
   group: [{x: 4, y: 0, style: aquaStyle}, {x: 5, y: 0, style: aquaStyle}, {x: 6, y: 0, style: aquaStyle}, {x: 7, y: 0, style: aquaStyle}]
@@ -126,34 +169,25 @@ const randomPiece = (num: number): BlockGroup => {
   }
 }
 
-abstract class RNG {
-  // LCG using GCC's constants
-  private static m = 0x80000000; // 2**31
-  private static a = 1103515245;
-  private static c = 12345;
-
-  /**
-   * Call `hash` repeatedly to generate the sequence of hashes.
-   * @param seed
-   * @returns a hash of the seed
-   */
-  public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
-
-  /**
-   * Takes hash value and scales it to the range [-1, 1]
-   */
-  public static scale = (hash: number) => (2 * hash) / (RNG.m - 1) - 1;
-}
-
 // functions to move blocks
 const updateBlock = (block: BlockGroup, movement: (block: Block) => Block) => ({group: block.group.map(movement)})
 
 const down = ({x, y, style}: Block): Block => ({x: x, y: y+1, style: style});
+const up = ({x, y, style}: Block): Block => ({x: x, y: y-1, style: style});
 const left = ({x, y, style}: Block): Block => ({x: x-1, y: y, style: style});
 const right = ({x, y, style}: Block): Block => ({x: x+1, y: y, style: style});
 
+const updateBoard = (grid: number[][], block: BlockGroup): number[][] => {
+  return grid.map((row: number[],rowIndex: number) => row.map((cell: number, columnIndex: number) => {
+    const conflict: boolean = block.group.some((block: Block) => block.x === columnIndex && block.y === rowIndex);
+  if (conflict) {return 1;}
+  else {return cell}}))
+};
+
 // function to detect collision
-const checkCollision = (grid: number[][], block: BlockGroup) => block.group.some((block: Block) => grid[block.y][block.x] === 1);
+const checkBlockCollision = (grid: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => grid[block.y][block.x] === 1);
+const checkBottomCollision = (grid: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.y || block.y >= Constants.GRID_HEIGHT)
+const checkSideCollision = (grid: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.x || block.x >= Constants.GRID_WIDTH)
 
 const grid: number[][] = [[0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
@@ -176,10 +210,13 @@ const grid: number[][] = [[0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0]]
 
-const initialState: State = {
+
+const BEGINNING: State = {
   gameEnd: false,
   boardState: grid,
-  currentBlock: randomPiece
+  currentBlock: updateBlock(randomPiece(sequence.next().value), up),
+  nextBlock: randomPiece(sequence.next().value),
+  RNG: sequence.next()
 } as const;
 
 interface Action {
@@ -193,7 +230,7 @@ interface Action {
  * @returns Updated state
  */
 // const tick = (s: State) => s;
-class Tick implements Action{
+class Tick implements Action {
   constructor(public readonly tick: number){}
 
   apply(s: State): State{
@@ -220,6 +257,35 @@ const moveBlock = (grid: number[][], oldBlock: BlockGroup, newBlock: BlockGroup)
       return cell;
     }
   }))
+}
+
+class MoveSideways implements Action{
+  constructor(public readonly change: (block: Block) => Block) {};
+
+  apply(s: State): State {
+    const updatedBlock: BlockGroup = updateBlock(s.currentBlock, this.change)
+
+    if (checkSideCollision(s.boardState, updatedBlock) || checkBlockCollision(s.boardState, updatedBlock)) {
+      return s;
+    }
+
+    return {...s, currentBlock: updatedBlock}
+  }
+}
+
+class MoveDownwards implements Action{
+  constructor(public readonly change: (block: Block) => Block) {};
+
+  apply(s: State): State {
+    const updatedBlock: BlockGroup = updateBlock(s.currentBlock, this.change)
+
+    if (checkBottomCollision(s.boardState, updatedBlock) || checkBlockCollision(s.boardState, updatedBlock)) {
+      const updatedBoard: number[][] = updateBoard(s.boardState, s.currentBlock)
+      return {...s, boardState: updatedBoard, currentBlock: s.nextBlock, nextBlock: randomPiece(s.RNG.next().value)}
+    }
+
+    return {...s, currentBlock: updatedBlock}
+  }
 }
 
 /** Rendering (side effects) */
@@ -262,6 +328,34 @@ const createSvgElement = (
   return elem;
 };
 
+const createBlock = (x: number, y: number, style: string, namespace: string | null): SVGElement =>
+  createSvgElement(namespace, "rect", {
+    height: `${BlockConstants.HEIGHT}`,
+    width: `${BlockConstants.WIDTH}`,
+    x: `${BlockConstants.WIDTH*(x)}`,
+    y: `${BlockConstants.HEIGHT*(y)}`,
+    style: `${style}`
+  });
+
+const renderBlock = (block: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  block.group.forEach((block: Block) => svg.appendChild(createBlock(block.x, block.y, block.style, namespace)))
+}
+
+const renderForPreview = (block: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  block.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, block.style, namespace)))
+}
+
+const renderGrid = (grid: number[][], namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  grid.forEach((row: number[], rowIndex: number) => row.forEach((cell: number, columnIndex: number) => {
+    if (grid[rowIndex][columnIndex] === 1) {
+      svg.appendChild(createBlock(columnIndex, rowIndex, greyStyle, namespace))
+    }
+    // else{
+    //   svg.appendChild(createBlock(columnIndex, rowIndex, background, namespace))
+    // }
+  }))
+}
+
 /**
  * This is the function called on page load. Your main game loop
  * should be called here.
@@ -290,18 +384,20 @@ export function main() {
 
   const key$ = fromEvent<KeyboardEvent>(document, "keypress");
 
-  const fromKey = (keyCode: Key) =>
-    key$.pipe(filter(({ code }) => code === keyCode));
+  const fromKey = (keyCode: Key, change: () => Action) =>
+    key$.pipe(filter(({ code }) => code === keyCode),
+    filter(({repeat}) => !repeat),
+    map(change));
 
-  const left$ = fromKey("KeyA");
-  const right$ = fromKey("KeyD");
-  const down$ = fromKey("KeyS");
-
+  const left$: Observable<Action> = fromKey("KeyA", () => new MoveSideways(left));
+  const right$: Observable<Action> = fromKey("KeyD", () => new MoveSideways(right));
+  const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards(down));
 
   /** Observables */
 
   /** Determines the rate of time steps */
-  const tick$ = interval(Constants.TICK_RATE_MS);
+  const tick$: Observable<Action> = interval(Constants.TICK_RATE_MS).pipe(map((_: number) => new MoveDownwards(down)));
+  // const tick$ = interval(Constants.TICK_RATE_MS);
 
   /**
    * Renders the current state to the canvas.
@@ -311,33 +407,17 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-    const blockObjects = s.boardState.flatMap((row, i) =>
-        row.map((cell, j) => ({
-          x: BlockConstants.WIDTH * j,
-          y: BlockConstants.HEIGHT * i,
-          style: cell === 0 ? "fill: #DAB483; stroke-width: 0px; z-index: 1" : "fill: green; stroke: black; stroke-width: 2px; z-index: 2"
-        })));
-    
-    blockObjects.forEach((block: Block): void => {
-      const SVGelem = createSvgElement(svg.namespaceURI, "rect", {
-        height: `${BlockConstants.HEIGHT}`,
-        width: `${BlockConstants.WIDTH}`,
-        x: `${block.x}`,
-        y: `${block.y}`,
-        style: `${block.style}`,
-      });
-      svg.appendChild(SVGelem);
-    });
+    svg.innerHTML = "";
+    preview.innerHTML = "";
+
+    renderBlock(s.currentBlock, svg.namespaceURI, svg);
+    renderForPreview(s.nextBlock, preview.namespaceURI, preview);
+    renderGrid(s.boardState, svg.namespaceURI, svg);
   };
 
 
-  const source$ = merge(tick$)
-    .pipe(
-      map((tick_val: number) => new Tick(tick_val)),
-      scan(reduceState, initialState)
-      )
-
-
+  const source$ = merge(tick$, left$, right$, down$)
+    .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING))
     .subscribe((s: State) => {
       render(s);
 
