@@ -28,18 +28,18 @@ const Viewport = {
 
 const Constants = {
   TICK_RATE_MS: 500,
-  GRID_WIDTH: 10,
-  GRID_HEIGHT: 20,
+  board_WIDTH: 10,
+  board_HEIGHT: 20,
 } as const;
 
 const BlockConstants = {
-  WIDTH: Viewport.CANVAS_WIDTH / Constants.GRID_WIDTH,
-  HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
+  WIDTH: Viewport.CANVAS_WIDTH / Constants.board_WIDTH,
+  HEIGHT: Viewport.CANVAS_HEIGHT / Constants.board_HEIGHT,
 };
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD";
+type Key = "KeyS" | "KeyA" | "KeyD"| "KeyR";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -70,45 +70,7 @@ interface LazySequence<T> {
   next():LazySequence<T>;
 }
 
-
-abstract class RNG {
-  // LCG using GCC's constants
-  private static m = 0x80000000; // 2**31
-  private static a = 1103515245;
-  private static c = 12345;
-
-  /**
-   * Call `hash` repeatedly to generate the sequence of hashes.
-   * @param seed
-   * @returns a hash of the seed
-   */
-  public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
-
-  /**
-   * Takes hash value and scales it to the range [-1, 1]
-   */
-  public static scale = (hash: number) => hash / (RNG.m - 1);
-}
-class RandomNumberSequence implements LazySequence<number> {
-  private seed: number;
-
-  constructor(seed: number) {
-    this.seed = seed;
-    this.value = Math.floor(RNG.scale(RNG.hash(this.seed)) * 7) + 1;
-    console.log(this.value)
-  }
-
-  value: number;
-
-  next(): RandomNumberSequence {
-    this.seed = RNG.hash(this.seed);
-    return new RandomNumberSequence(this.seed);
-  }
-}
-
 // Usage
-const seed = 29013;
-const sequence: LazySequence<number> = new RandomNumberSequence(29013);
 
 
 // CSS Styles for blocks
@@ -177,19 +139,21 @@ const up = ({x, y, style}: Block): Block => ({x: x, y: y-1, style: style});
 const left = ({x, y, style}: Block): Block => ({x: x-1, y: y, style: style});
 const right = ({x, y, style}: Block): Block => ({x: x+1, y: y, style: style});
 
-const updateBoard = (grid: number[][], block: BlockGroup): number[][] => {
-  return grid.map((row: number[],rowIndex: number) => row.map((cell: number, columnIndex: number) => {
+const updateBoard = (board: number[][], block: BlockGroup): number[][] => {
+  return board.map((row: number[],rowIndex: number) => row.map((cell: number, columnIndex: number) => {
     const conflict: boolean = block.group.some((block: Block) => block.x === columnIndex && block.y === rowIndex);
   if (conflict) {return 1;}
   else {return cell}}))
 };
 
 // function to detect collision
-const checkBlockCollision = (grid: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => grid[block.y][block.x] === 1);
-const checkBottomCollision = (grid: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.y || block.y >= Constants.GRID_HEIGHT)
-const checkSideCollision = (grid: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.x || block.x >= Constants.GRID_WIDTH)
+const convertNegatives = (num: number): number => (num < 0 ? 0 : num);
+const checkBlockCollision = (board: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => board[convertNegatives(block.y)][block.x] === 1);
+const checkSideCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.x || block.x >= Constants.board_WIDTH)
+const checkBottomCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => block.y >= Constants.board_HEIGHT)
+const checkTopCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.y)
 
-const grid: number[][] = [[0,0,0,0,0,0,0,0,0,0],
+const board: number[][] = [[0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
@@ -210,10 +174,47 @@ const grid: number[][] = [[0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0]]
 
+abstract class RNG {
+  // LCG using GCC's constants
+  private static m = 0x80000000; // 2**31
+  private static a = 1103515245;
+  private static c = 12345;
+
+  /**
+   * Call `hash` repeatedly to generate the sequence of hashes.
+   * @param seed
+   * @returns a hash of the seed
+   */
+  public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
+
+  /**
+   * Takes hash value and scales it to the range [-1, 1]
+   */
+  public static scale = (hash: number) => hash / (RNG.m - 1);
+}
+class RandomNumberSequence implements LazySequence<number> {
+  private seed: number;
+
+  constructor(seed: number) {
+    this.seed = seed;
+    this.value = Math.floor(RNG.scale(RNG.hash(this.seed)) * 7) + 1;
+    console.log(this.value)
+  }
+  value: number;
+
+  next(): RandomNumberSequence {
+    this.seed = RNG.hash(this.seed);
+    return new RandomNumberSequence(this.seed);
+  }
+}
+
+const seed = 2000;
+const sequence: LazySequence<number> = new RandomNumberSequence(seed);
+
 
 const BEGINNING: State = {
   gameEnd: false,
-  boardState: grid,
+  boardState: board,
   currentBlock: updateBlock(randomPiece(sequence.next().value), up),
   nextBlock: randomPiece(sequence.next().value),
   RNG: sequence.next()
@@ -223,53 +224,27 @@ interface Action {
   apply(s: State): State;
 }
 
-/**
- * Updates the state by proceeding with one time step.
- *
- * @param s Current state
- * @returns Updated state
- */
-// const tick = (s: State) => s;
-class Tick implements Action {
-  constructor(public readonly tick: number){}
+class Reset implements Action {
+  constructor(public readonly change: (block: Block) => Block) {};
 
-  apply(s: State): State{
-    const updatedBlock: BlockGroup = {group: s.currentBlock.group.map(({x, y}: Block): Block => ({x: x, y: y+1, style: greenStyle}))}
-    const updatedBoard: number[][] = moveBlock(s.boardState, s.currentBlock, updatedBlock)
-    return { ...s, currentBlock: updatedBlock, boardState: updatedBoard}
-  };
-}
-
-const moveBlock = (grid: number[][], oldBlock: BlockGroup, newBlock: BlockGroup): number[][] => {
-  return grid.map((row: number[], rowIndex: number) => row.map((cell: number, columnIndex: number) => {
-    const isOldPieceCell: boolean = oldBlock.group.some((block: Block) => block.x === columnIndex && block.y === rowIndex);
-    const isNewPieceCell: boolean = newBlock.group.some((block: Block) => block.x === columnIndex && block.y === rowIndex);
-    if (isOldPieceCell && isNewPieceCell){
-      return 1;
-    }
-    else if (isOldPieceCell){
-      return 0;
-    }
-    else if (isNewPieceCell){
-      return 1;
-    }
-    else{
-      return cell;
-    }
-  }))
+  apply(s: State): State {
+    return {...BEGINNING, 
+      currentBlock: updateBlock(randomPiece(sequence.next().value), up),
+      nextBlock: randomPiece(sequence.next().value)};
+  }
 }
 
 class MoveSideways implements Action{
   constructor(public readonly change: (block: Block) => Block) {};
 
   apply(s: State): State {
-    const updatedBlock: BlockGroup = updateBlock(s.currentBlock, this.change)
+    const newBlock: BlockGroup = updateBlock(s.currentBlock, this.change)
 
-    if (checkSideCollision(s.boardState, updatedBlock) || checkBlockCollision(s.boardState, updatedBlock)) {
+    if (checkSideCollision(newBlock) || checkBlockCollision(s.boardState, newBlock)) {
       return s;
     }
 
-    return {...s, currentBlock: updatedBlock}
+    return {...s, currentBlock: newBlock}
   }
 }
 
@@ -277,19 +252,22 @@ class MoveDownwards implements Action{
   constructor(public readonly change: (block: Block) => Block) {};
 
   apply(s: State): State {
-    const updatedBlock: BlockGroup = updateBlock(s.currentBlock, this.change)
+    const newBlock: BlockGroup = updateBlock(s.currentBlock, this.change);
 
-    if (checkBottomCollision(s.boardState, updatedBlock) || checkBlockCollision(s.boardState, updatedBlock)) {
-      const updatedBoard: number[][] = updateBoard(s.boardState, s.currentBlock)
-      return {...s, boardState: updatedBoard, currentBlock: s.nextBlock, nextBlock: randomPiece(s.RNG.next().value)}
+    if (checkTopCollision(s.currentBlock) && checkBlockCollision(s.boardState, s.currentBlock)) {
+      return {...s, gameEnd: true}
     }
 
-    return {...s, currentBlock: updatedBlock}
+    if (checkBottomCollision(newBlock) || checkBlockCollision(s.boardState, newBlock)) {
+      const newBoard: number[][] = updateBoard(s.boardState, s.currentBlock)
+      return {...s, boardState: newBoard, currentBlock: updateBlock(s.nextBlock, up), nextBlock: randomPiece(s.RNG.next().value)}
+    }
+
+    return {...s, currentBlock: newBlock}
   }
 }
 
 /** Rendering (side effects) */
-const reduceState = (s:State, change: Action) => change.apply(s);
 
 /**
  * Displays a SVG element on the canvas. Brings to foreground.
@@ -334,7 +312,8 @@ const createBlock = (x: number, y: number, style: string, namespace: string | nu
     width: `${BlockConstants.WIDTH}`,
     x: `${BlockConstants.WIDTH*(x)}`,
     y: `${BlockConstants.HEIGHT*(y)}`,
-    style: `${style}`
+    style: `${style}`,
+    id: `block`
   });
 
 const renderBlock = (block: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
@@ -345,16 +324,20 @@ const renderForPreview = (block: BlockGroup, namespace: string | null, svg: SVGG
   block.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, block.style, namespace)))
 }
 
-const renderGrid = (grid: number[][], namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
-  grid.forEach((row: number[], rowIndex: number) => row.forEach((cell: number, columnIndex: number) => {
-    if (grid[rowIndex][columnIndex] === 1) {
+const renderboard = (board: number[][], namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  board.forEach((row: number[], rowIndex: number) => row.forEach((cell: number, columnIndex: number) => {
+    if (board[rowIndex][columnIndex] === 1) {
       svg.appendChild(createBlock(columnIndex, rowIndex, greyStyle, namespace))
     }
-    // else{
-    //   svg.appendChild(createBlock(columnIndex, rowIndex, background, namespace))
-    // }
   }))
 }
+
+const clearHTML = (svg: SVGGraphicsElement & HTMLElement) => {
+    const blocks = svg.querySelectorAll('[id="block"]');
+    blocks.forEach(block => {
+      svg.removeChild(block);
+    });
+  }
 
 /**
  * This is the function called on page load. Your main game loop
@@ -392,6 +375,7 @@ export function main() {
   const left$: Observable<Action> = fromKey("KeyA", () => new MoveSideways(left));
   const right$: Observable<Action> = fromKey("KeyD", () => new MoveSideways(right));
   const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards(down));
+  const reset$: Observable<Action> = fromKey("KeyR", () => new Reset(down));
 
   /** Observables */
 
@@ -407,16 +391,16 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-    svg.innerHTML = "";
-    preview.innerHTML = "";
+    clearHTML(svg);
+    clearHTML(preview);
 
     renderBlock(s.currentBlock, svg.namespaceURI, svg);
     renderForPreview(s.nextBlock, preview.namespaceURI, preview);
-    renderGrid(s.boardState, svg.namespaceURI, svg);
+    renderboard(s.boardState, svg.namespaceURI, svg);
   };
 
 
-  const source$ = merge(tick$, left$, right$, down$)
+  const source$ = merge(tick$, left$, right$, down$, reset$)
     .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING))
     .subscribe((s: State) => {
       render(s);
