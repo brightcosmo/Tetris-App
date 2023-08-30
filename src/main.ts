@@ -39,7 +39,7 @@ const BlockConstants = {
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD"| "KeyR";
+type Key = "KeyS" | "KeyA" | "KeyD"| "KeyR" | "KeyW";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -50,7 +50,7 @@ type Event = "keydown" | "keyup" | "keypress";
 type State = Readonly<{
   gameEnd: boolean,
   boardState: number[][],
-  currentBlock: BlockGroup
+  currentBlock: BlockGroup,
   nextBlock: BlockGroup,
   RNG: LazySequence<number>
 }>;
@@ -58,11 +58,13 @@ type State = Readonly<{
 type Block = Readonly<{
   x: number,
   y: number,
-  style: string
 }>
 
 type BlockGroup = Readonly<{
-  group: Block[]
+  group: Block[],
+  currentRotation: number,
+  name: string,
+  style: string
 }>
 
 interface LazySequence<T> {
@@ -85,32 +87,105 @@ const greyStyle: string = "fill: #808080; stroke: black; stroke-width: 2px; z-in
 const background: string = "fill: #DAB483; stroke-width: 0px;"
 
 const IBLOCK: BlockGroup = {
-  group: [{x: 4, y: 0, style: aquaStyle}, {x: 5, y: 0, style: aquaStyle}, {x: 6, y: 0, style: aquaStyle}, {x: 7, y: 0, style: aquaStyle}]
-}
+  style: aquaStyle,
+  group: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 5, y: 0}, {x: 6, y: 0}],
+  name: "IBLOCK",
+  currentRotation: 1
+};
 
 const OBLOCK: BlockGroup = {
-  group: [{x: 4, y: 0, style: yellowStyle}, {x: 5, y: 0, style: yellowStyle}, {x: 4, y: 1, style: yellowStyle}, {x: 5, y: 1, style: yellowStyle}]
-}
+  style: yellowStyle,
+  group: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+  name: "OBLOCK",
+  currentRotation: 1
+};
 
 const TBLOCK: BlockGroup = {
-  group: [{x: 4, y: 0, style: purpleStyle}, {x: 3, y: 1, style: purpleStyle}, {x: 4, y: 1, style: purpleStyle}, {x: 5, y: 1, style: purpleStyle}]
-}
+  style: purpleStyle,
+  group: [{x: 4, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}],
+  name: "TBLOCK",
+  currentRotation: 1
+};
 
 const JBLOCK: BlockGroup = {
-  group: [{x: 3, y: 0, style: blueStyle}, {x: 3, y: 1, style: blueStyle}, {x: 4, y: 1, style: blueStyle}, {x: 5, y: 1, style: blueStyle}]
-}
+  style: blueStyle,
+  group: [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}],
+  name: "JBLOCK",
+  currentRotation: 1
+};
 
 const LBLOCK: BlockGroup = {
-  group: [{x: 5, y: 0, style: orangeStyle}, {x: 3, y: 1, style: orangeStyle}, {x: 4, y: 1, style: orangeStyle}, {x: 5, y: 1, style: orangeStyle}]
-}
+  style: orangeStyle,
+  group: [{x: 5, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}],
+  name: "LBLOCK",
+  currentRotation: 1
+};
 
 const SBLOCK: BlockGroup = {
-  group: [{x: 4, y: 0, style: greenStyle}, {x: 5, y: 0, style: greenStyle}, {x: 3, y: 1, style: greenStyle}, {x: 4, y: 1, style: greenStyle}]
-}
+  style: greenStyle,
+  group: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}],
+  name: "SBLOCK",
+  currentRotation: 1
+};
 
 const ZBLOCK: BlockGroup = {
-  group: [{x: 3, y: 0, style: redStyle}, {x: 4, y: 0, style: redStyle}, {x: 4, y: 1, style: redStyle}, {x: 5, y: 1, style: redStyle}]
-}
+  style: redStyle,
+  group: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+  name: "ZBLOCK",
+  currentRotation: 1
+};
+
+type RotationLookupTable = {
+  [tetromino: string]: {
+    [rotation: number]: Block[];
+  };
+};
+
+const rotationLookupTable: RotationLookupTable = {
+  IBLOCK: {
+    1: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 5, y: 0}, {x: 6, y: 0}],
+    2: [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 4, y: 3}],
+    3: [{x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}, {x: 6, y: 1}],
+    4: [{x: 5, y: 0}, {x: 5, y: 1}, {x: 5, y: 2}, {x: 5, y: 3}],
+  },
+  OBLOCK: {
+    1: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+    2: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+    3: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+    4: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+  },
+  TBLOCK: {
+    1: [{x: 4, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}],
+    2: [{x: 4, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 4, y: 2}],
+    3: [{x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}, {x: 4, y: 2}],
+    4: [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 5, y: 1}],
+  },
+  JBLOCK: {
+    1: [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}],
+    2: [{x: 4, y: 0}, {x: 3, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}],
+    3: [{x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}, {x: 5, y: 2}],
+    4: [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 5, y: 2}],
+  },
+  LBLOCK: {
+    1: [{x: 5, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}],
+    2: [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 5, y: 2}],
+    3: [{x: 3, y: 1}, {x: 4, y: 1}, {x: 5, y: 1}, {x: 3, y: 2}],
+    4: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}],
+  },
+  SBLOCK: {
+    1: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}],
+    2: [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 4, y: 2}],
+    3: [{x: 4, y: 0}, {x: 5, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}],
+    4: [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 4, y: 2}],
+  },
+  ZBLOCK: {
+    1: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+    2: [{x: 4, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 3, y: 2}],
+    3: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
+    4: [{x: 4, y: 0}, {x: 3, y: 1}, {x: 4, y: 1}, {x: 3, y: 2}],
+  },
+};
+
 
 const randomPiece = (num: number): BlockGroup => {
   switch (num) {
@@ -132,12 +207,12 @@ const randomPiece = (num: number): BlockGroup => {
 }
 
 // functions to move blocks
-const updateBlock = (block: BlockGroup, movement: (block: Block) => Block) => ({group: block.group.map(movement)})
+const updateBlock = (block: BlockGroup, movement: (block: Block) => Block) => ({...block, group: block.group.map(movement)})
 
-const down = ({x, y, style}: Block): Block => ({x: x, y: y+1, style: style});
-const up = ({x, y, style}: Block): Block => ({x: x, y: y-1, style: style});
-const left = ({x, y, style}: Block): Block => ({x: x-1, y: y, style: style});
-const right = ({x, y, style}: Block): Block => ({x: x+1, y: y, style: style});
+const down = ({x, y}: Block): Block => ({x: x, y: y+1});
+const up = ({x, y}: Block): Block => ({x: x, y: y-1});
+const left = ({x, y}: Block): Block => ({x: x-1, y: y});
+const right = ({x, y}: Block): Block => ({x: x+1, y: y});
 
 const updateBoard = (board: number[][], block: BlockGroup): number[][] => {
   return board.map((row: number[],rowIndex: number) => row.map((cell: number, columnIndex: number) => {
@@ -208,7 +283,8 @@ class RandomNumberSequence implements LazySequence<number> {
   }
 }
 
-const seed = 2000;
+// impure
+const seed = Math.random();
 const sequence: LazySequence<number> = new RandomNumberSequence(seed);
 
 
@@ -220,17 +296,54 @@ const BEGINNING: State = {
   RNG: sequence.next()
 } as const;
 
+
+function rotateBlock(block: BlockGroup): BlockGroup{
+  const originalBlock = rotationLookupTable[block.name][block.currentRotation]
+
+  const distX: number = block.group[0].x - originalBlock[0].x
+  const distY: number = block.group[0].y - originalBlock[0].y
+  const newRotation: number = toggleRotation(block.currentRotation)
+  
+  
+
+  const rotatedCoordinates = rotationLookupTable[block.name][newRotation].map(({ x, y }) => ({x: distX + x,y: distY +y}));
+  return {...block, group: rotatedCoordinates, currentRotation: newRotation}
+}
+
 interface Action {
   apply(s: State): State;
 }
+
+const toggleRotation = (current: number): number => {
+  switch (current){
+    case 1: return 2;
+    case 2: return 3;
+    case 3: return 4;
+    default: return 1;
+  }
+}
+
+class Rotate implements Action {
+  constructor(public readonly change: (block: Block) => Block) {};
+
+  apply(s: State): State {
+    const rotatedBlock = rotateBlock(s.currentBlock)
+    if (checkBlockCollision(s.boardState, rotatedBlock) || checkBottomCollision(rotatedBlock) || checkSideCollision(rotatedBlock) || checkTopCollision(rotatedBlock)){
+      return s;
+    }
+    return {...s, currentBlock: rotatedBlock}}
+  }
 
 class Reset implements Action {
   constructor(public readonly change: (block: Block) => Block) {};
 
   apply(s: State): State {
-    return {...BEGINNING, 
-      currentBlock: updateBlock(randomPiece(sequence.next().value), up),
-      nextBlock: randomPiece(sequence.next().value)};
+    if (s.gameEnd){
+      return {...BEGINNING, 
+        currentBlock: updateBlock(randomPiece(sequence.next().value), up),
+        nextBlock: randomPiece(sequence.next().value)};
+    }
+    return s;
   }
 }
 
@@ -316,16 +429,16 @@ const createBlock = (x: number, y: number, style: string, namespace: string | nu
     id: `block`
   });
 
-const renderBlock = (block: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
-  block.group.forEach((block: Block) => svg.appendChild(createBlock(block.x, block.y, block.style, namespace)))
+const renderBlock = (blockGroup: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  blockGroup.group.forEach((block: Block) => svg.appendChild(createBlock(block.x, block.y, blockGroup.style, namespace)))
 }
 
-const renderForPreview = (block: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
-  block.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, block.style, namespace)))
+const renderForPreview = (blockGroup: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  blockGroup.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, blockGroup.style, namespace)))
 }
 
 const renderboard = (board: number[][], namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
-  board.forEach((row: number[], rowIndex: number) => row.forEach((cell: number, columnIndex: number) => {
+  board.forEach((row: number[], rowIndex: number) => row.forEach((square: number, columnIndex: number) => {
     if (board[rowIndex][columnIndex] === 1) {
       svg.appendChild(createBlock(columnIndex, rowIndex, greyStyle, namespace))
     }
@@ -376,6 +489,7 @@ export function main() {
   const right$: Observable<Action> = fromKey("KeyD", () => new MoveSideways(right));
   const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards(down));
   const reset$: Observable<Action> = fromKey("KeyR", () => new Reset(down));
+  const rotate$: Observable<Action> = fromKey("KeyW", () => new Rotate(down));
 
   /** Observables */
 
@@ -400,7 +514,7 @@ export function main() {
   };
 
 
-  const source$ = merge(tick$, left$, right$, down$, reset$)
+  const source$ = merge(tick$, left$, right$, down$, reset$, rotate$)
     .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING))
     .subscribe((s: State) => {
       render(s);
