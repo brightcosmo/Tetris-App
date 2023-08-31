@@ -28,15 +28,15 @@ const Viewport = {
 
 const Constants = {
   TICK_RATE_MS: 500,
-  board_WIDTH: 10,
-  board_HEIGHT: 20,
-  score: 10,
-  bonusScore: 100
+  BOARD_WIDTH: 10,
+  BOARD_HEIGHT: 20,
+  SCORE: 10,
+  BONUS_SCORE: 100
 } as const;
 
 const BlockConstants = {
-  WIDTH: Viewport.CANVAS_WIDTH / Constants.board_WIDTH,
-  HEIGHT: Viewport.CANVAS_HEIGHT / Constants.board_HEIGHT,
+  WIDTH: Viewport.CANVAS_WIDTH / Constants.BOARD_WIDTH,
+  HEIGHT: Viewport.CANVAS_HEIGHT / Constants.BOARD_HEIGHT,
 };
 
 /** User input */
@@ -47,6 +47,12 @@ type Event = "keydown" | "keyup" | "keypress";
 
 /** Utility functions */
 
+
+const getNextBlock = (): BlockGroup => {
+  return randomPiece(sequence.next().value)
+}
+
+
 /** State processing */
 
 type State = Readonly<{
@@ -56,7 +62,10 @@ type State = Readonly<{
   nextBlock: BlockGroup,
   heldBlock: BlockGroup | null,
   holdStatus: boolean,
-  RNG: LazySequence<number>
+  RNG: LazySequence<number>,
+  score: number,
+  highScore: number,
+  level: number
 }>;
 
 type Block = Readonly<{
@@ -88,7 +97,6 @@ const orangeStyle: string = "fill: #ff8100; stroke: black; stroke-width: 2px; z-
 const greenStyle: string = "fill: #00ff00; stroke: black; stroke-width: 2px; z-index: 2"
 const redStyle: string = "fill: #ff0000; stroke: black; stroke-width: 2px; z-index: 2"
 const greyStyle: string = "fill: #808080; stroke: black; stroke-width: 2px; z-index: 2"
-const background: string = "fill: #DAB483; stroke-width: 0px;"
 
 const IBLOCK: BlockGroup = {
   style: aquaStyle,
@@ -145,7 +153,7 @@ type RotationLookupTable = {
   };
 };
 
-const rotationLookupTable: RotationLookupTable = {
+const BlockCoordinates: RotationLookupTable = {
   IBLOCK: {
     1: [{x: 3, y: 0}, {x: 4, y: 0}, {x: 5, y: 0}, {x: 6, y: 0}],
     2: [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 4, y: 3}],
@@ -213,10 +221,14 @@ const randomPiece = (num: number): BlockGroup => {
 // functions to move blocks
 const updateBlock = (block: BlockGroup, movement: (block: Block) => Block) => ({...block, group: block.group.map(movement)})
 
-const down = ({x, y}: Block): Block => ({x: x, y: y+1});
-const up = ({x, y}: Block): Block => ({x: x, y: y-1});
-const left = ({x, y}: Block): Block => ({x: x-1, y: y});
-const right = ({x, y}: Block): Block => ({x: x+1, y: y});
+const moveDown = ({x, y}: Block): Block => ({x: x, y: y+1});
+const moveUp = ({x, y}: Block): Block => ({x: x, y: y-1});
+const moveLeft = ({x, y}: Block): Block => ({x: x-1, y: y});
+const moveRight = ({x, y}: Block): Block => ({x: x+1, y: y});
+
+const moveToBoard = (block: BlockGroup): BlockGroup => {
+  return updateBlock(block, moveUp)
+}
 
 const updateBoard = (board: number[][], block: BlockGroup): number[][] => {
   return board.map((row: number[],rowIndex: number) => row.map((cell: number, columnIndex: number) => {
@@ -228,9 +240,14 @@ const updateBoard = (board: number[][], block: BlockGroup): number[][] => {
 // function to detect collision
 const convertNegatives = (num: number): number => (num < 0 ? 0 : num);
 const checkBlockCollision = (board: number[][], block: BlockGroup): boolean => block.group.some((block: Block) => board[convertNegatives(block.y)][block.x] === 1);
-const checkSideCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.x || block.x >= Constants.board_WIDTH)
-const checkBottomCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => block.y >= Constants.board_HEIGHT)
+const checkSideCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.x || block.x >= Constants.BOARD_WIDTH)
+const checkBottomCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => block.y >= Constants.BOARD_HEIGHT)
 const checkTopCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.y)
+
+const removeClearedRows = (board: number[][]): number[][] => {
+  return board.filter(row => !row.every(block => block === 1));
+};
+
 
 const board: number[][] = [[0,0,0,0,0,0,0,0,0,0],
 [0,0,0,0,0,0,0,0,0,0],
@@ -295,23 +312,26 @@ const sequence: LazySequence<number> = new RandomNumberSequence(seed);
 const BEGINNING_STATE: State = {
   gameEnd: false,
   boardState: board,
-  currentBlock: updateBlock(randomPiece(sequence.next().value), up),
-  nextBlock: randomPiece(sequence.next().value),
+  currentBlock: moveToBoard(getNextBlock()),
+  nextBlock: getNextBlock(),
   heldBlock: null,
   holdStatus: false,
-  RNG: sequence.next()
+  RNG: sequence.next(),
+  score: 0,
+  highScore: 0,
+  level: 3
 } as const;
 
 
 function rotateBlock(block: BlockGroup): BlockGroup{
-  const originalCoordinates = rotationLookupTable[block.name][block.currentRotation]
+  const originalCoordinates = BlockCoordinates[block.name][block.currentRotation]
 
   const distX: number = block.group[0].x - originalCoordinates[0].x
   const distY: number = block.group[0].y - originalCoordinates[0].y
   const newRotation: number = toggleRotation(block.currentRotation)
   
 
-  const rotatedCoordinates = rotationLookupTable[block.name][newRotation].map(({ x, y }) => ({x: distX + x,y: distY +y}));
+  const rotatedCoordinates = BlockCoordinates[block.name][newRotation].map(({ x, y }) => ({x: distX + x,y: distY +y}));
   return {...block, group: rotatedCoordinates, currentRotation: newRotation}
 }
 
@@ -328,9 +348,8 @@ const toggleRotation = (current: number): number => {
   }
 }
 
-class Rotate implements Action {
-  constructor(public readonly change: (block: Block) => Block) {};
 
+class Rotate implements Action {
   apply(s: State): State {
     const rotatedBlock = rotateBlock(s.currentBlock)
     if (checkBlockCollision(s.boardState, rotatedBlock) || checkBottomCollision(rotatedBlock) || checkSideCollision(rotatedBlock) || checkTopCollision(rotatedBlock)){
@@ -340,13 +359,12 @@ class Rotate implements Action {
   }
 
 class Reset implements Action {
-  constructor(public readonly change: (block: Block) => Block) {};
-
   apply(s: State): State {
     if (s.gameEnd){
       return {...BEGINNING_STATE, 
-        currentBlock: updateBlock(randomPiece(sequence.next().value), up),
-        nextBlock: randomPiece(sequence.next().value)};
+        currentBlock: updateBlock(getNextBlock(), moveUp),
+        nextBlock: getNextBlock(),
+        highScore: s.highScore};
     }
     return s;
   }
@@ -356,57 +374,82 @@ class MoveSideways implements Action{
   constructor(public readonly change: (block: Block) => Block) {};
 
   apply(s: State): State {
+    // attempt to move the block - if there is any collision, don't move it
     const newBlock: BlockGroup = updateBlock(s.currentBlock, this.change)
-
     if (checkSideCollision(newBlock) || checkBlockCollision(s.boardState, newBlock)) {
       return s;
     }
-
     return {...s, currentBlock: newBlock}
   }
 }
 
 class MoveDownwards implements Action{
-  constructor(public readonly change: (block: Block) => Block) {};
-
   apply(s: State): State {
-    const newBlock: BlockGroup = updateBlock(s.currentBlock, this.change);
-
-    // end the game if the current block has a bottom collision and is reaching the top of the grid
+    // check if we should end the game and update the high score
     if (checkTopCollision(s.currentBlock) && checkBlockCollision(s.boardState, s.currentBlock)) {
-      return {...s, gameEnd: true}
+      const newHighScore: number = s.score > s.highScore ? s.score : s.highScore
+      return {...s, gameEnd: true, highScore: newHighScore}
     }
 
-    // if there collision below the block, stop moving it and continue with the next block
-    if (checkBottomCollision(newBlock) || checkBlockCollision(s.boardState, newBlock)) {
-      const newBoard: number[][] = updateBoard(s.boardState, s.currentBlock)
-      return {...s, boardState: newBoard, currentBlock: updateBlock(s.nextBlock, up), nextBlock: randomPiece(s.RNG.next().value), holdStatus: false}
+    // try to move the block
+    const movedBlock: BlockGroup = updateBlock(s.currentBlock, moveDown);
+
+    // if there collision below the block, stop and move on to the next block
+    // also, check if any rows were cleared and adjust score accordingly
+    if (checkBottomCollision(movedBlock) || checkBlockCollision(s.boardState, movedBlock)) {
+      const newBoard: number[][] = updateBoard(s.boardState, s.currentBlock);
+      // check if there are any cleared rows, then update the board
+      const clearedRows: number[][] = removeClearedRows(s.boardState);
+      const clearedCount: number = Constants.BOARD_HEIGHT - clearedRows.length
+      const nextBlock = getNextBlock();
+
+      // update the board, the score
+      if (clearedCount){
+        const updatedBoard: number[][] = replaceRows(s.boardState, clearedCount);
+        const newScore: number = s.score + Constants.SCORE*clearedCount;
+        return {...s, 
+          boardState: updatedBoard, 
+          currentBlock: moveToBoard(s.nextBlock), 
+          nextBlock: nextBlock,
+          holdStatus: false, 
+          score: newScore}
+      }
+      else{
+        return {...s, 
+          boardState: newBoard, 
+          currentBlock: moveToBoard(s.nextBlock), 
+          nextBlock: nextBlock, 
+          holdStatus: false}
+      }
     }
 
-    return {...s, currentBlock: newBlock}
+    // otherwise, just move the block
+    return {...s, currentBlock: movedBlock}
   }
 }
-
+const replaceRows = (board: number[][], rowsCleared: number): number[][] => {
+  const emptyRow = [0,0,0,0,0,0,0,0,0,0].map(value => value * rowsCleared);
+  return [emptyRow].concat(board);
+};
 class HoldBlock implements Action {
-  constructor(public readonly change: (block: Block) => Block) {};
-
   apply(s: State): State {
-    // blocks can only be held once in between placing blocks
+    // check if we already held
     if (s.holdStatus){
       return s;
     }
 
-    // if nothing is held, replace the empty block with the next from the preview
-    if (!s.heldBlock){
-      return {...s, currentBlock: randomPiece(s.RNG.next().value), heldBlock: s.currentBlock, holdStatus: true};
+    // reset the coordinates of the current block to be held
+    const resettedBlock: BlockGroup= {...s.currentBlock, group: BlockCoordinates[s.currentBlock.name][1]};
+    
+    // reset coordinates/orientation and swap
+    if (s.heldBlock){
+      const resettedHeld: BlockGroup = {...s.heldBlock, group: BlockCoordinates[s.heldBlock.name][1]};
+      return {...s, currentBlock: resettedHeld, heldBlock: resettedBlock, holdStatus: true}
     }
 
-    // use the rotation lookup table to reset their coordinates and orientation
-    const resettedHeld: BlockGroup = {...s.heldBlock, group: rotationLookupTable[s.heldBlock.name][1]};
-    const resettedBlock: BlockGroup= {...s.currentBlock, group: rotationLookupTable[s.currentBlock.name][1]};
+    // no block is held yet, so just add the current one
+    return {...s, currentBlock: getNextBlock(), heldBlock: s.currentBlock, holdStatus: true};
 
-    // swap the blocks, and set the status to true so we can't swap again
-    return {...s, currentBlock: resettedHeld, heldBlock: resettedBlock, holdStatus: true}
   }
 }
 
@@ -467,10 +510,6 @@ const renderForPreview = (blockGroup: BlockGroup, namespace: string | null, svg:
   blockGroup.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, blockGroup.style, namespace)))
 }
 
-const renderHeldBlock = (blockGroup: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
-  blockGroup.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, blockGroup.style, namespace)))
-}
-
 const renderboard = (board: number[][], namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
   board.forEach((row: number[], rowIndex: number) => row.forEach((square: number, columnIndex: number) => {
     if (board[rowIndex][columnIndex] === 1) {
@@ -515,7 +554,6 @@ export function main() {
   const highScoreText = document.querySelector("#highScoreText") as HTMLElement;
 
   /** User input */
-
   const key$ = fromEvent<KeyboardEvent>(document, "keypress");
 
   const fromKey = (keyCode: Key, change: () => Action) =>
@@ -523,23 +561,23 @@ export function main() {
     filter(({repeat}) => !repeat),
     map(change));
 
-  const left$: Observable<Action> = fromKey("KeyA", () => new MoveSideways(left));
-  const right$: Observable<Action> = fromKey("KeyD", () => new MoveSideways(right));
-  const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards(down));
-  const reset$: Observable<Action> = fromKey("KeyR", () => new Reset(down));
-  const rotate$: Observable<Action> = fromKey("KeyW", () => new Rotate(down));
-  const hold$: Observable<Action> = fromKey("KeyH", () => new HoldBlock(down));
-
+  const left$: Observable<Action> = fromKey("KeyA", () => new MoveSideways(moveLeft));
+  const right$: Observable<Action> = fromKey("KeyD", () => new MoveSideways(moveRight));
+  const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards());
+  const reset$: Observable<Action> = fromKey("KeyR", () => new Reset());
+  const rotate$: Observable<Action> = fromKey("KeyW", () => new Rotate());
+  const hold$: Observable<Action> = fromKey("KeyH", () => new HoldBlock());
   
   /** Observables */
 
   /** Determines the rate of time steps */
-  const tick$: Observable<Action> = interval(Constants.TICK_RATE_MS).pipe(map((_: number) => new MoveDownwards(down)));
-  // const tick$ = interval(Constants.TICK_RATE_MS);
+  const tick$: Observable<Action> = interval(Constants.TICK_RATE_MS).pipe(map((_: number) => new MoveDownwards()));
+  const tick2$: Observable<Action> = interval(Constants.TICK_RATE_MS*2).pipe(map((_: number) => new MoveDownwards()));
+  const tick3$: Observable<Action> = interval(Constants.TICK_RATE_MS*3).pipe(map((_: number) => new MoveDownwards()));
 
   /**
    * Renders the current state to the canvas.
-   *
+   * 
    * In MVC terms, this updates the View using the Model.
    *
    * @param s Current state
@@ -548,13 +586,16 @@ export function main() {
     clearHTML(svg);
     clearHTML(preview);
     clearHTML(holdPreview);
+    levelText.innerText = `${s.level}`
+    scoreText.innerText = `${s.score}`
+    highScoreText.innerText = `${s.highScore}`
 
+    renderboard(s.boardState, svg.namespaceURI, svg);
     renderBlock(s.currentBlock, svg.namespaceURI, svg);
     renderForPreview(s.nextBlock, preview.namespaceURI, preview);
     if (s.heldBlock){
-      renderHeldBlock(s.heldBlock, holdPreview.namespaceURI, holdPreview);
+      renderForPreview(s.heldBlock, holdPreview.namespaceURI, holdPreview);
     }
-    renderboard(s.boardState, svg.namespaceURI, svg);
   };
 
 
