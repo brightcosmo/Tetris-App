@@ -30,6 +30,8 @@ const Constants = {
   TICK_RATE_MS: 500,
   board_WIDTH: 10,
   board_HEIGHT: 20,
+  score: 10,
+  bonusScore: 100
 } as const;
 
 const BlockConstants = {
@@ -39,7 +41,7 @@ const BlockConstants = {
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD"| "KeyR" | "KeyW";
+type Key = "KeyS" | "KeyA" | "KeyD"| "KeyR" | "KeyW" | "KeyH";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -52,6 +54,8 @@ type State = Readonly<{
   boardState: number[][],
   currentBlock: BlockGroup,
   nextBlock: BlockGroup,
+  heldBlock: BlockGroup | null,
+  holdStatus: boolean,
   RNG: LazySequence<number>
 }>;
 
@@ -288,22 +292,23 @@ const seed = Math.random();
 const sequence: LazySequence<number> = new RandomNumberSequence(seed);
 
 
-const BEGINNING: State = {
+const BEGINNING_STATE: State = {
   gameEnd: false,
   boardState: board,
   currentBlock: updateBlock(randomPiece(sequence.next().value), up),
   nextBlock: randomPiece(sequence.next().value),
+  heldBlock: null,
+  holdStatus: false,
   RNG: sequence.next()
 } as const;
 
 
 function rotateBlock(block: BlockGroup): BlockGroup{
-  const originalBlock = rotationLookupTable[block.name][block.currentRotation]
+  const originalCoordinates = rotationLookupTable[block.name][block.currentRotation]
 
-  const distX: number = block.group[0].x - originalBlock[0].x
-  const distY: number = block.group[0].y - originalBlock[0].y
+  const distX: number = block.group[0].x - originalCoordinates[0].x
+  const distY: number = block.group[0].y - originalCoordinates[0].y
   const newRotation: number = toggleRotation(block.currentRotation)
-  
   
 
   const rotatedCoordinates = rotationLookupTable[block.name][newRotation].map(({ x, y }) => ({x: distX + x,y: distY +y}));
@@ -339,7 +344,7 @@ class Reset implements Action {
 
   apply(s: State): State {
     if (s.gameEnd){
-      return {...BEGINNING, 
+      return {...BEGINNING_STATE, 
         currentBlock: updateBlock(randomPiece(sequence.next().value), up),
         nextBlock: randomPiece(sequence.next().value)};
     }
@@ -367,16 +372,41 @@ class MoveDownwards implements Action{
   apply(s: State): State {
     const newBlock: BlockGroup = updateBlock(s.currentBlock, this.change);
 
+    // end the game if the current block has a bottom collision and is reaching the top of the grid
     if (checkTopCollision(s.currentBlock) && checkBlockCollision(s.boardState, s.currentBlock)) {
       return {...s, gameEnd: true}
     }
 
+    // if there collision below the block, stop moving it and continue with the next block
     if (checkBottomCollision(newBlock) || checkBlockCollision(s.boardState, newBlock)) {
       const newBoard: number[][] = updateBoard(s.boardState, s.currentBlock)
-      return {...s, boardState: newBoard, currentBlock: updateBlock(s.nextBlock, up), nextBlock: randomPiece(s.RNG.next().value)}
+      return {...s, boardState: newBoard, currentBlock: updateBlock(s.nextBlock, up), nextBlock: randomPiece(s.RNG.next().value), holdStatus: false}
     }
 
     return {...s, currentBlock: newBlock}
+  }
+}
+
+class HoldBlock implements Action {
+  constructor(public readonly change: (block: Block) => Block) {};
+
+  apply(s: State): State {
+    // blocks can only be held once in between placing blocks
+    if (s.holdStatus){
+      return s;
+    }
+
+    // if nothing is held, replace the empty block with the next from the preview
+    if (!s.heldBlock){
+      return {...s, currentBlock: randomPiece(s.RNG.next().value), heldBlock: s.currentBlock, holdStatus: true};
+    }
+
+    // use the rotation lookup table to reset their coordinates and orientation
+    const resettedHeld: BlockGroup = {...s.heldBlock, group: rotationLookupTable[s.heldBlock.name][1]};
+    const resettedBlock: BlockGroup= {...s.currentBlock, group: rotationLookupTable[s.currentBlock.name][1]};
+
+    // swap the blocks, and set the status to true so we can't swap again
+    return {...s, currentBlock: resettedHeld, heldBlock: resettedBlock, holdStatus: true}
   }
 }
 
@@ -437,6 +467,10 @@ const renderForPreview = (blockGroup: BlockGroup, namespace: string | null, svg:
   blockGroup.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, blockGroup.style, namespace)))
 }
 
+const renderHeldBlock = (blockGroup: BlockGroup, namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
+  blockGroup.group.forEach((block: Block) => svg.appendChild(createBlock(block.x-1, block.y+1, blockGroup.style, namespace)))
+}
+
 const renderboard = (board: number[][], namespace: string | null, svg: SVGGraphicsElement & HTMLElement) => {
   board.forEach((row: number[], rowIndex: number) => row.forEach((square: number, columnIndex: number) => {
     if (board[rowIndex][columnIndex] === 1) {
@@ -462,6 +496,8 @@ export function main() {
     HTMLElement;
   const preview = document.querySelector("#svgPreview") as SVGGraphicsElement &
     HTMLElement;
+  const holdPreview = document.querySelector("#holdPreview") as SVGGraphicsElement &
+    HTMLElement;
   const gameover = document.querySelector("#gameOver") as SVGGraphicsElement &
     HTMLElement;
   const container = document.querySelector("#main") as HTMLElement;
@@ -470,6 +506,8 @@ export function main() {
   svg.setAttribute("width", `${Viewport.CANVAS_WIDTH}`);
   preview.setAttribute("height", `${Viewport.PREVIEW_HEIGHT}`);
   preview.setAttribute("width", `${Viewport.PREVIEW_WIDTH}`);
+  holdPreview.setAttribute("height", `${Viewport.PREVIEW_HEIGHT}`);
+  holdPreview.setAttribute("width", `${Viewport.PREVIEW_WIDTH}`);
 
   // Text fields
   const levelText = document.querySelector("#levelText") as HTMLElement;
@@ -490,7 +528,9 @@ export function main() {
   const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards(down));
   const reset$: Observable<Action> = fromKey("KeyR", () => new Reset(down));
   const rotate$: Observable<Action> = fromKey("KeyW", () => new Rotate(down));
+  const hold$: Observable<Action> = fromKey("KeyH", () => new HoldBlock(down));
 
+  
   /** Observables */
 
   /** Determines the rate of time steps */
@@ -507,15 +547,19 @@ export function main() {
   const render = (s: State) => {
     clearHTML(svg);
     clearHTML(preview);
+    clearHTML(holdPreview);
 
     renderBlock(s.currentBlock, svg.namespaceURI, svg);
     renderForPreview(s.nextBlock, preview.namespaceURI, preview);
+    if (s.heldBlock){
+      renderHeldBlock(s.heldBlock, holdPreview.namespaceURI, holdPreview);
+    }
     renderboard(s.boardState, svg.namespaceURI, svg);
   };
 
 
-  const source$ = merge(tick$, left$, right$, down$, reset$, rotate$)
-    .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING))
+  const source$ = merge(tick$, left$, right$, down$, reset$, rotate$, hold$)
+    .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING_STATE))
     .subscribe((s: State) => {
       render(s);
 

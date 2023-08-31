@@ -70,7 +70,7 @@ svg rect {
   background-color: rgb(183, 151, 110);
 }
 
-#svgPreview {
+#svgPreview, #holdPreview {
   background-color: rgb(218, 180, 131);
 }
 
