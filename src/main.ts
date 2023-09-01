@@ -12,10 +12,11 @@
  * Document your code!
  */
 
+import { normalizeArray } from "discord.js";
 import "./style.css";
 
-import { fromEvent, interval, merge,Observable } from "rxjs";
-import { map, filter, scan } from "rxjs/operators";
+import { fromEvent, interval, merge, Observable, switchMap, tap } from "rxjs";
+import { map, filter, scan, mapTo } from "rxjs/operators";
 
 /** Constants */
 
@@ -244,8 +245,15 @@ const checkSideCollision = (block: BlockGroup): boolean => block.group.some((blo
 const checkBottomCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => block.y >= Constants.BOARD_HEIGHT)
 const checkTopCollision = (block: BlockGroup): boolean => block.group.some((block: Block) => 0 > block.y)
 
-const removeClearedRows = (board: number[][]): number[][] => {
-  return board.filter(row => !row.every(block => block === 1));
+const countAndClearRows = (board: number[][]): [number, number[][]] => {
+  const clearedBoard = board.
+    filter(row => !row.every(block => block === 1));
+
+  const rowsCleared = Constants.BOARD_HEIGHT - clearedBoard.length;
+
+  const replacedBoard = [[0,0,0,0,0,0,0,0,0,0].map(n => n*rowsCleared)].concat(clearedBoard);
+
+  return [rowsCleared, replacedBoard]
 };
 
 
@@ -319,7 +327,7 @@ const BEGINNING_STATE: State = {
   RNG: sequence.next(),
   score: 0,
   highScore: 0,
-  level: 3
+  level: 1
 } as const;
 
 
@@ -383,6 +391,51 @@ class MoveSideways implements Action{
   }
 }
 
+class Tick implements Action {
+  apply (s: State): State {
+    if (s.level === 1){
+      return new MoveDownwards().apply(s);
+    }
+    return s; 
+  }
+}
+
+class TickL2 implements Action {
+  apply (s: State): State {
+    if (s.level === 2){
+      return new MoveDownwards().apply(s);
+    }
+    return s;
+  }
+}
+
+class TickL3 implements Action {
+  apply (s: State): State {
+    if (s.level === 3){
+      return new MoveDownwards().apply(s);
+    }
+    return s;
+  }
+}
+
+const updateLevel = (score: number): number => {
+  if (score < 100){
+    return 1
+  }
+  else if (score <= 200){
+    return 2
+  }
+  return 3
+}
+
+const updateScore = (currentScore: number, rowsCleared: number): number => {
+  return currentScore + (Constants.SCORE*rowsCleared);
+}
+
+const removeClearedRows = (board: number[][]): number[][] => {
+  return board.filter(row => !row.every(block => block === 1));
+};
+
 class MoveDownwards implements Action{
   apply(s: State): State {
     // check if we should end the game and update the high score
@@ -394,25 +447,27 @@ class MoveDownwards implements Action{
     // try to move the block
     const movedBlock: BlockGroup = updateBlock(s.currentBlock, moveDown);
 
-    // if there collision below the block, stop and move on to the next block
+    // if there is any collision below the block, stop and move on to the next block
     // also, check if any rows were cleared and adjust score accordingly
     if (checkBottomCollision(movedBlock) || checkBlockCollision(s.boardState, movedBlock)) {
       const newBoard: number[][] = updateBoard(s.boardState, s.currentBlock);
       // check if there are any cleared rows, then update the board
-      const clearedRows: number[][] = removeClearedRows(s.boardState);
-      const clearedCount: number = Constants.BOARD_HEIGHT - clearedRows.length
+      const clearedBoard: number[][] = removeClearedRows(newBoard);
+      const clearedCount: number = Constants.BOARD_HEIGHT - clearedBoard.length
       const nextBlock = getNextBlock();
 
-      // update the board, the score
+      // update the board, the score  
       if (clearedCount){
-        const updatedBoard: number[][] = replaceRows(s.boardState, clearedCount);
-        const newScore: number = s.score + Constants.SCORE*clearedCount;
+        const updatedBoard: number[][] = countAndClearRows(s.boardState)[1];
+        const newScore: number = updateScore(s.score, clearedCount)
+        const newLevel: number = updateLevel(newScore);
         return {...s, 
           boardState: updatedBoard, 
           currentBlock: moveToBoard(s.nextBlock), 
           nextBlock: nextBlock,
           holdStatus: false, 
-          score: newScore}
+          score: newScore,
+          level: updateLevel(newScore)}
       }
       else{
         return {...s, 
@@ -427,10 +482,7 @@ class MoveDownwards implements Action{
     return {...s, currentBlock: movedBlock}
   }
 }
-const replaceRows = (board: number[][], rowsCleared: number): number[][] => {
-  const emptyRow = [0,0,0,0,0,0,0,0,0,0].map(value => value * rowsCleared);
-  return [emptyRow].concat(board);
-};
+
 class HoldBlock implements Action {
   apply(s: State): State {
     // check if we already held
@@ -439,17 +491,16 @@ class HoldBlock implements Action {
     }
 
     // reset the coordinates of the current block to be held
-    const resettedBlock: BlockGroup= {...s.currentBlock, group: BlockCoordinates[s.currentBlock.name][1]};
+    const currentBlock: BlockGroup= {...s.currentBlock, group: BlockCoordinates[s.currentBlock.name][1]};
     
     // reset coordinates/orientation and swap
     if (s.heldBlock){
-      const resettedHeld: BlockGroup = {...s.heldBlock, group: BlockCoordinates[s.heldBlock.name][1]};
-      return {...s, currentBlock: resettedHeld, heldBlock: resettedBlock, holdStatus: true}
+      const heldBlock: BlockGroup = {...s.heldBlock, group: BlockCoordinates[s.heldBlock.name][1]};
+      return {...s, currentBlock: heldBlock, heldBlock: currentBlock, holdStatus: true}
     }
 
     // no block is held yet, so just add the current one
-    return {...s, currentBlock: getNextBlock(), heldBlock: s.currentBlock, holdStatus: true};
-
+    return {...s, currentBlock: getNextBlock(), heldBlock: currentBlock, holdStatus: true};
   }
 }
 
@@ -530,6 +581,9 @@ const clearHTML = (svg: SVGGraphicsElement & HTMLElement) => {
  * should be called here.
  */
 export function main() {
+  const tetrisAudio = document.querySelector("#tetrisAudio") as HTMLAudioElement;
+  tetrisAudio.play();
+
   // Canvas elements
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
@@ -571,9 +625,9 @@ export function main() {
   /** Observables */
 
   /** Determines the rate of time steps */
-  const tick$: Observable<Action> = interval(Constants.TICK_RATE_MS).pipe(map((_: number) => new MoveDownwards()));
-  const tick2$: Observable<Action> = interval(Constants.TICK_RATE_MS*2).pipe(map((_: number) => new MoveDownwards()));
-  const tick3$: Observable<Action> = interval(Constants.TICK_RATE_MS*3).pipe(map((_: number) => new MoveDownwards()));
+  // const tick$: Observable<Action> = interval(Constants.TICK_RATE_MS).pipe(map((_: number) => new MoveDownwards()));
+  // const tick2$: Observable<Action> = interval(Constants.TICK_RATE_MS*3).pipe(map((_: number) => new MoveDownwards()));
+  // const tick3$: Observable<Action> = interval(Constants.TICK_RATE_MS*5).pipe(map((_: number) => new MoveDownwards()));
 
   /**
    * Renders the current state to the canvas.
@@ -598,8 +652,11 @@ export function main() {
     }
   };
 
+  const tick$: Observable<Action> = interval(Constants.TICK_RATE_MS).pipe(map((_: number) => new Tick()));
+  const tick2$: Observable<Action> = interval(Constants.TICK_RATE_MS*0.85).pipe(map((_: number) => new TickL2()));
+  const tick3$: Observable<Action> = interval(Constants.TICK_RATE_MS*0.7).pipe(map((_: number) => new TickL3()));
 
-  const source$ = merge(tick$, left$, right$, down$, reset$, rotate$, hold$)
+  const source$ = merge(tick$, tick2$, tick3$, left$, right$, down$, reset$, rotate$, hold$)
     .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING_STATE))
     .subscribe((s: State) => {
       render(s);
@@ -609,7 +666,7 @@ export function main() {
       } else {
         hide(gameover);
       }
-    });
+  });
 }
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.

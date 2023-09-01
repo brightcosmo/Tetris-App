@@ -6,7 +6,6 @@
     <h1>Tetris</h1>
     <main id="main" class="flex row">
       <svg id="svgCanvas">
-        <!-- game over text box -->
         <g id="gameOver" visibility="hidden">
           <rect x="26" y="120" fill="white" height="48" width="149"></rect>
           <text x="36" y="150">Game Over</text>
@@ -28,6 +27,16 @@
             <span class="left">Highscore: </span>
             <span class="right" id="highScoreText">...</span>
           </div>
+          <div class="text">
+            <span>Controls: </span>
+            <br>W - Rotate
+            <br>A - Move left
+            <br>S - Move down
+            <br>D - Move left
+            <br>H - Hold block
+            <br>R - Reset
+          </div>
+          <audio id="tetrisAudio" autoplay loop src="tetris.mp3" type="audio/mpeg"></audio>
         </div>
       </div>
     </main>
