@@ -60,7 +60,6 @@ class RandomNumberSequence implements LazySequence<number> {
   constructor(seed: number) {
     this.seed = seed;
     this.value = Math.floor(this.scale(this.hash(this.seed)) * 7) + 1; // number range is integers from 1-7
-    console.log(this.value);
   }
   value: number;
 
@@ -631,12 +630,15 @@ class MoveDownwards implements Action {
 
       // update the board and the score if rows were cleared
       if (clearedRows) {
-        const updatedBoard: number[][] = this.replaceClearedRows(s.boardState, clearedRows);
+        const clearedBoard: number[][] = this.replaceClearedRows(
+          newBoard,
+          clearedRows
+        );
         const newScore: number = this.updateScore(s.score, clearedRows);
         const newLevel: number = this.updateLevel(newScore);
         return {
           ...s,
-          boardState: updatedBoard,
+          boardState: clearedBoard,
           currentBlock: moveToBoard(s.nextBlock),
           nextBlock: nextBlock,
           holdStatus: false,
@@ -682,11 +684,11 @@ class MoveDownwards implements Action {
       (row) => !row.every((block) => block === 1)
     );
 
-    const replacedBoard = [
-      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0].map((n) => n * clearedRows),
-    ].concat(clearedBoard);
+    const newRows = Array.from({ length: clearedRows }, () => [
+      ...Array(10).map(() => 0),
+    ]);
 
-    return replacedBoard;
+    return [...newRows, ...clearedBoard];
   };
 }
 
@@ -865,11 +867,6 @@ const clearHTML = (svg: SVGGraphicsElement & HTMLElement) => {
  * should be called here.
  */
 export function main() {
-  const tetrisAudio = document.querySelector(
-    "#tetrisAudio"
-  ) as HTMLAudioElement;
-  tetrisAudio.play();
-
   // Canvas elements
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
@@ -904,14 +901,8 @@ export function main() {
       map(change)
     );
 
-  const left$: Observable<Action> = fromKey(
-    "KeyA",
-    () => new MoveSideways(moveLeft)
-  );
-  const right$: Observable<Action> = fromKey(
-    "KeyD",
-    () => new MoveSideways(moveRight)
-  );
+  const left$: Observable<Action> = fromKey("KeyA",() => new MoveSideways(moveLeft));
+  const right$: Observable<Action> = fromKey("KeyD",() => new MoveSideways(moveRight));
   const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards());
   const reset$: Observable<Action> = fromKey("KeyR", () => new Reset());
   const rotate$: Observable<Action> = fromKey("KeyW", () => new Rotate());
