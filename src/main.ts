@@ -553,7 +553,7 @@ class Rotate implements Action {
   // to rotate the block, calculate the x,y distance this block travelled
   // and translate its rotated version to the same distance
   rotateBlock(block: BlockGroup): BlockGroup {
-    const originalCoordinates =
+    const originalCoordinates: {x: number, y: number}[] =
       BlockCoordinates[block.name][block.currentRotation];
 
     const distX: number = block.group[0].x - originalCoordinates[0].x;
