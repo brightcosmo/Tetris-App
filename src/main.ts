@@ -1,10 +1,13 @@
 /*---------------------------------------------------------------------
+|  FIT2102 ASSIGNMENT 1 - SEM 2 2023
+|  AMIRUL MOHAMMAD AZIZOL - 32619898
+*-------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------
 |  Import statements
 *-------------------------------------------------------------------*/
-import { normalizeArray } from "discord.js";
 import "./style.css";
-
-import { fromEvent, interval, merge, Observable, switchMap, tap } from "rxjs";
+import { fromEvent, interval, merge, Observable, switchMap, tap, Subject } from "rxjs";
 import { map, filter, scan } from "rxjs/operators";
 
 /*---------------------------------------------------------------------
@@ -34,7 +37,7 @@ const BlockConstants = {
 /*---------------------------------------------------------------------
 |  Accepted keys and events
 *-------------------------------------------------------------------*/
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyR" | "KeyW" | "KeyH";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyR" | "KeyW" | "KeyH" | "KeyX";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -60,7 +63,7 @@ class RandomNumberSequence implements LazySequence<number> {
   // number range is integers from 1-7
   constructor(seed: number) {
     this.seed = seed;
-    this.value = Math.floor(this.scale(this.hash(this.seed)) * 7) + 1; 
+    this.value = Math.floor(this.scale(this.hash(this.seed)) * 7) + 1;
   }
   value: number;
 
@@ -224,6 +227,7 @@ type RotationLookupTable = {
 };
 
 // numbers correspond to rotation configurations
+// state 1 is default, same as above
 const BlockCoordinates: RotationLookupTable = {
   IBLOCK: {
     1: [
@@ -305,33 +309,33 @@ const BlockCoordinates: RotationLookupTable = {
   },
   JBLOCK: {
     1: [
-      { x: 3, y: 0 },
-      { x: 3, y: 1 },
+      { x: 4, y: 0 },
       { x: 4, y: 1 },
-      { x: 5, y: 1 },
+      { x: 4, y: 2 },
+      { x: 5, y: 2 },
     ],
     2: [
-      { x: 4, y: 0 },
+      { x: 3, y: 1 },
+      { x: 4, y: 1 },
+      { x: 5, y: 0 },
+      { x: 5, y: 1 },
+    ],
+    3: [
       { x: 3, y: 0 },
+      { x: 4, y: 0 },
       { x: 4, y: 1 },
       { x: 4, y: 2 },
     ],
-    3: [
+    4: [
       { x: 3, y: 1 },
       { x: 4, y: 1 },
       { x: 5, y: 1 },
-      { x: 5, y: 2 },
-    ],
-    4: [
-      { x: 4, y: 0 },
-      { x: 4, y: 1 },
-      { x: 4, y: 2 },
-      { x: 5, y: 2 },
+      { x: 5, y: 0 },
     ],
   },
   LBLOCK: {
     1: [
-      { x: 5, y: 0 },
+      { x: 5, y: 2 },
       { x: 3, y: 1 },
       { x: 4, y: 1 },
       { x: 5, y: 1 },
@@ -340,16 +344,16 @@ const BlockCoordinates: RotationLookupTable = {
       { x: 4, y: 0 },
       { x: 4, y: 1 },
       { x: 4, y: 2 },
-      { x: 5, y: 2 },
+      { x: 5, y: 0 },
     ],
     3: [
       { x: 3, y: 1 },
       { x: 4, y: 1 },
       { x: 5, y: 1 },
-      { x: 3, y: 2 },
+      { x: 3, y: 0 },
     ],
     4: [
-      { x: 3, y: 0 },
+      { x: 3, y: 2 },
       { x: 4, y: 0 },
       { x: 4, y: 1 },
       { x: 4, y: 2 },
@@ -409,28 +413,9 @@ const BlockCoordinates: RotationLookupTable = {
   },
 };
 
-const board: number[][] = [
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-];
+const board = Array.from({ length: Constants.BOARD_HEIGHT }, () =>
+  Array.from({ length: Constants.BOARD_WIDTH }, () => 0)
+);
 
 /*---------------------------------------------------------------------
 |  Functions for moving blocks
@@ -441,16 +426,20 @@ const moveLeft = ({ x, y }: Block): Block => ({ x: x - 1, y: y });
 const moveRight = ({ x, y }: Block): Block => ({ x: x + 1, y: y });
 
 // higher order function, mapping the movement to all blocks in the group
-const updateBlock = (blockGroup: BlockGroup, movement: (block: Block) => Block) => ({
+const updateBlock = (
+  blockGroup: BlockGroup,
+  movement: (block: Block) => Block
+) => ({
   ...blockGroup,
   group: blockGroup.group.map(movement),
 });
 
-// moves the block to the board, shifting it up
+// moves the block to the board, shifting it upwards
 const moveToBoard = (blockGroup: BlockGroup): BlockGroup => {
   return updateBlock(blockGroup, moveUp);
 };
 
+// adds the block to its matching coordinates on the board - so it stops moving
 const updateBoard = (board: number[][], blockGroup: BlockGroup): number[][] => {
   return board.map((row: number[], rowIndex: number) =>
     row.map((cell: number, columnIndex: number) =>
@@ -504,23 +493,31 @@ const checkTopCollision = (block: BlockGroup): boolean =>
 |  Specialized functions (combining the collision detection above)
 *-------------------------------------------------------------------*/
 const checkEndGame = (movedBlock: BlockGroup, board: number[][]) => {
-  return checkTopCollision(movedBlock) && checkBlockCollision(board, movedBlock);
-}
+  return (
+    checkTopCollision(movedBlock) && checkBlockCollision(board, movedBlock)
+  );
+};
 
 const cantMoveDown = (movedBlock: BlockGroup, board: number[][]) => {
-  return checkBottomCollision(movedBlock) || checkBlockCollision(board, movedBlock);
-}
+  return (
+    checkBottomCollision(movedBlock) || checkBlockCollision(board, movedBlock)
+  );
+};
 
 const cantRotate = (movedBlock: BlockGroup, board: number[][]) => {
-  return checkBlockCollision(board, movedBlock) ||
-  checkBottomCollision(movedBlock) ||
-  checkSideCollision(movedBlock) ||
-  checkTopCollision(movedBlock)
-}
+  return (
+    checkBlockCollision(board, movedBlock) ||
+    checkBottomCollision(movedBlock) ||
+    checkSideCollision(movedBlock) ||
+    checkTopCollision(movedBlock)
+  );
+};
 
 const cantMoveSideways = (movedBlock: BlockGroup, board: number[][]) => {
-  return checkBlockCollision(board, movedBlock) || checkSideCollision(movedBlock);
-}
+  return (
+    checkBlockCollision(board, movedBlock) || checkSideCollision(movedBlock)
+  );
+};
 
 /*---------------------------------------------------------------------
 |  Action classes and related functions
@@ -588,21 +585,6 @@ class Rotate implements Action {
   };
 }
 
-// return to beginning, keeping only high score and randomizing blocks
-class Reset implements Action {
-  apply(s: State): State {
-    if (s.gameEnd) {
-      return {
-        ...BEGINNING_STATE,
-        currentBlock: moveToBoard(getNextBlock()),
-        nextBlock: getNextBlock(),
-        highScore: s.highScore,
-      };
-    }
-    return s;
-  }
-}
-
 class MoveSideways implements Action {
   // change will be the function to move left or right
   constructor(public readonly change: (block: Block) => Block) {}
@@ -667,7 +649,7 @@ class MoveDownwards implements Action {
   }
 
   updateScore = (currentScore: number, rowsCleared: number): number => {
-    return currentScore + Constants.SCORE_PER_ROW * rowsCleared;
+    return currentScore + Constants.SCORE_PER_ROW * rowsCleared*10;
   };
 
   updateLevel = (score: number): number => {
@@ -728,10 +710,47 @@ class HoldBlock implements Action {
     // no block is held yet, so just add the current one
     return {
       ...s,
-      currentBlock: getNextBlock(),
+      currentBlock: s.nextBlock,
+      nextBlock: getNextBlock(),
       heldBlock: currentBlock,
       holdStatus: true,
     };
+  }
+}
+
+// return to beginning, keeping only high score and randomizing blocks
+class Reset implements Action {
+  apply(s: State): State {
+    if (s.gameEnd) {
+      return {
+        ...BEGINNING_STATE,
+        currentBlock: moveToBoard(getNextBlock()),
+        nextBlock: getNextBlock(),
+        highScore: s.highScore,
+      };
+    }
+    return s;
+  }
+}
+
+class Drop implements Action {
+  apply(s: State): State {
+    const continueDropping = (board: number[][], block: BlockGroup): BlockGroup => {
+      const newBlock = updateBlock(block, moveDown);
+      if (cantMoveDown(newBlock, board)) {
+        return block;
+      } else {
+        return continueDropping(
+          board,
+          updateBlock(block, moveDown)
+        )
+      }
+    }
+
+    return new MoveDownwards().apply({
+      ...s,
+      currentBlock: continueDropping(s.boardState, s.currentBlock)
+    })
   }
 }
 
@@ -871,19 +890,26 @@ export function main() {
   /** User input */
   const key$ = fromEvent<KeyboardEvent>(document, "keypress");
 
-  const fromKey = (keyCode: Key, change: () => Action) =>
-    key$.pipe(
+  function createKeyObservable(
+    keyCode: string,
+    actionFactory: () => Action
+  ): Observable<Action> {
+    const key$ = fromEvent<KeyboardEvent>(document, "keypress");
+    return key$.pipe(
       filter(({ code }) => code === keyCode),
       filter(({ repeat }) => !repeat),
-      map(change)
+      map(actionFactory)
     );
-
-  const left$: Observable<Action> = fromKey("KeyA",() => new MoveSideways(moveLeft));
-  const right$: Observable<Action> = fromKey("KeyD",() => new MoveSideways(moveRight));
-  const down$: Observable<Action> = fromKey("KeyS", () => new MoveDownwards());
-  const reset$: Observable<Action> = fromKey("KeyR", () => new Reset());
-  const rotate$: Observable<Action> = fromKey("KeyW", () => new Rotate());
-  const hold$: Observable<Action> = fromKey("KeyH", () => new HoldBlock());
+  }
+  
+  // Usage
+  const left$: Observable<Action> = createKeyObservable("KeyA", () => new MoveSideways(moveLeft));
+  const right$: Observable<Action> = createKeyObservable("KeyD", () => new MoveSideways(moveRight));
+  const down$: Observable<Action> = createKeyObservable("KeyS", () => new MoveDownwards());
+  const reset$: Observable<Action> = createKeyObservable("KeyR", () => new Reset());
+  const rotate$: Observable<Action> = createKeyObservable("KeyW", () => new Rotate());
+  const hold$: Observable<Action> = createKeyObservable("KeyH", () => new HoldBlock());
+  const drop$: Observable<Action> = createKeyObservable("KeyX", () => new Drop());
 
   /** Observables */
 
@@ -910,18 +936,22 @@ export function main() {
       renderPreview(s.heldBlock, holdPreview.namespaceURI, holdPreview);
     }
   };
-  
+
   // higher order function to create the various tickstreams
-  function createTickObservable(level: number, tickRateMultiplier: number): Observable<Action> {
+  function createTickObservable(
+    level: number,
+    tickRateMultiplier: number
+  ): Observable<Action> {
     return interval(Constants.TICK_RATE_MS * tickRateMultiplier).pipe(
       map((_: number) => new Tick(level))
     );
   }
-  
+
   const tick$: Observable<Action> = createTickObservable(1, 1);
   const tick2$: Observable<Action> = createTickObservable(2, 0.8);
   const tick3$: Observable<Action> = createTickObservable(3, 0.6);
-
+  const startNewGame$: Subject<void> = new Subject<void>();
+  
   const source$ = merge(
     tick$,
     tick2$,
@@ -931,19 +961,35 @@ export function main() {
     down$,
     reset$,
     rotate$,
-    hold$
-  )
-    .pipe(scan((acc: State, n: Action) => n.apply(acc), BEGINNING_STATE))
-    .subscribe((s: State) => {
+    hold$,
+    drop$,
+  ).pipe(
+    scan((acc: State, n: Action) => n.apply(acc), BEGINNING_STATE),
+    switchMap((s: State) => {
       render(s);
-
+  
       if (s.gameEnd) {
         show(gameover);
+        return startNewGame$;
       } else {
         hide(gameover);
+        if (s.level === 2) {
+          console.log(2)
+          return tick2$;
+        } else if (s.level === 3) {
+          console.log(3)
+          return tick3$;
+        } else {
+          return tick$;
+        }
       }
-    });
+    })
+  );
+  
+  source$.subscribe();
 }
+
+
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
 if (typeof window !== "undefined") {
