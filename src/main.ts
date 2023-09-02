@@ -649,7 +649,7 @@ class MoveDownwards implements Action {
   }
 
   updateScore = (currentScore: number, rowsCleared: number): number => {
-    return currentScore + Constants.SCORE_PER_ROW * rowsCleared*10;
+    return currentScore + Constants.SCORE_PER_ROW * rowsCleared;
   };
 
   updateLevel = (score: number): number => {
@@ -979,10 +979,8 @@ export function main() {
       } else {
         hide(gameover);
         if (s.level === 2) {
-          console.log(2)
           return tick2$;
         } else if (s.level === 3) {
-          console.log(3)
           return tick3$;
         } else {
           return tick$;
