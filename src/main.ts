@@ -57,9 +57,10 @@ class RandomNumberSequence implements LazySequence<number> {
 
   private seed: number;
 
+  // number range is integers from 1-7
   constructor(seed: number) {
     this.seed = seed;
-    this.value = Math.floor(this.scale(this.hash(this.seed)) * 7) + 1; // number range is integers from 1-7
+    this.value = Math.floor(this.scale(this.hash(this.seed)) * 7) + 1; 
   }
   value: number;
 
@@ -121,26 +122,19 @@ type BlockGroup = Readonly<{
   style: string;
 }>;
 
-// CSS Styles for blocks
-const aquaStyle: string =
-  "fill: #00ffff; stroke: black; stroke-width: 2px; z-index: 2";
-const yellowStyle: string =
-  "fill: #ffff00; stroke: black; stroke-width: 2px; z-index: 2";
-const purpleStyle: string =
-  "fill: #ff00ff; stroke: black; stroke-width: 2px; z-index: 2";
-const blueStyle: string =
-  "fill: #0000ff; stroke: black; stroke-width: 2px; z-index: 2";
-const orangeStyle: string =
-  "fill: #ff8100; stroke: black; stroke-width: 2px; z-index: 2";
-const greenStyle: string =
-  "fill: #00ff00; stroke: black; stroke-width: 2px; z-index: 2";
-const redStyle: string =
-  "fill: #ff0000; stroke: black; stroke-width: 2px; z-index: 2";
-const greyStyle: string =
-  "fill: #808080; stroke: black; stroke-width: 2px; z-index: 2";
+const STYLES = {
+  aqua: "fill: #00ffff; stroke: black; stroke-width: 2px; z-index: 2",
+  yellow: "fill: #ffff00; stroke: black; stroke-width: 2px; z-index: 2",
+  purple: "fill: #ff00ff; stroke: black; stroke-width: 2px; z-index: 2",
+  blue: "fill: #0000ff; stroke: black; stroke-width: 2px; z-index: 2",
+  orange: "fill: #ff8100; stroke: black; stroke-width: 2px; z-index: 2",
+  green: "fill: #00ff00; stroke: black; stroke-width: 2px; z-index: 2",
+  red: "fill: #ff0000; stroke: black; stroke-width: 2px; z-index: 2",
+  grey: "fill: #808080; stroke: black; stroke-width: 2px; z-index: 2",
+};
 
 const IBLOCK: BlockGroup = {
-  style: aquaStyle,
+  style: STYLES.aqua,
   group: [
     { x: 3, y: 0 },
     { x: 4, y: 0 },
@@ -152,7 +146,7 @@ const IBLOCK: BlockGroup = {
 };
 
 const OBLOCK: BlockGroup = {
-  style: yellowStyle,
+  style: STYLES.yellow,
   group: [
     { x: 4, y: 0 },
     { x: 5, y: 0 },
@@ -164,7 +158,7 @@ const OBLOCK: BlockGroup = {
 };
 
 const TBLOCK: BlockGroup = {
-  style: purpleStyle,
+  style: STYLES.purple,
   group: [
     { x: 4, y: 0 },
     { x: 3, y: 1 },
@@ -176,7 +170,7 @@ const TBLOCK: BlockGroup = {
 };
 
 const JBLOCK: BlockGroup = {
-  style: blueStyle,
+  style: STYLES.blue,
   group: [
     { x: 3, y: 0 },
     { x: 3, y: 1 },
@@ -188,7 +182,7 @@ const JBLOCK: BlockGroup = {
 };
 
 const LBLOCK: BlockGroup = {
-  style: orangeStyle,
+  style: STYLES.orange,
   group: [
     { x: 5, y: 0 },
     { x: 3, y: 1 },
@@ -200,7 +194,7 @@ const LBLOCK: BlockGroup = {
 };
 
 const SBLOCK: BlockGroup = {
-  style: greenStyle,
+  style: STYLES.green,
   group: [
     { x: 4, y: 0 },
     { x: 5, y: 0 },
@@ -212,7 +206,7 @@ const SBLOCK: BlockGroup = {
 };
 
 const ZBLOCK: BlockGroup = {
-  style: redStyle,
+  style: STYLES.red,
   group: [
     { x: 3, y: 0 },
     { x: 4, y: 0 },
@@ -446,7 +440,7 @@ const moveUp = ({ x, y }: Block): Block => ({ x: x, y: y - 1 });
 const moveLeft = ({ x, y }: Block): Block => ({ x: x - 1, y: y });
 const moveRight = ({ x, y }: Block): Block => ({ x: x + 1, y: y });
 
-// accepts one of the movement functions above and maps it to the whole group
+// higher order function, mapping the movement to all blocks in the group
 const updateBlock = (blockGroup: BlockGroup, movement: (block: Block) => Block) => ({
   ...blockGroup,
   group: blockGroup.group.map(movement),
@@ -509,22 +503,22 @@ const checkTopCollision = (block: BlockGroup): boolean =>
 /*---------------------------------------------------------------------
 |  Specialized functions (combining the collision detection above)
 *-------------------------------------------------------------------*/
-const checkStopBlock = (movedBlock: BlockGroup, board: number[][]) => {
-  return checkBottomCollision(movedBlock) || checkBlockCollision(board, movedBlock);
-}
-
 const checkEndGame = (movedBlock: BlockGroup, board: number[][]) => {
   return checkTopCollision(movedBlock) && checkBlockCollision(board, movedBlock);
 }
 
-const checkToRotate = (movedBlock: BlockGroup, board: number[][]) => {
+const cantMoveDown = (movedBlock: BlockGroup, board: number[][]) => {
+  return checkBottomCollision(movedBlock) || checkBlockCollision(board, movedBlock);
+}
+
+const cantRotate = (movedBlock: BlockGroup, board: number[][]) => {
   return checkBlockCollision(board, movedBlock) ||
   checkBottomCollision(movedBlock) ||
   checkSideCollision(movedBlock) ||
   checkTopCollision(movedBlock)
 }
 
-const checkMoveSideways = (movedBlock: BlockGroup, board: number[][]) => {
+const cantMoveSideways = (movedBlock: BlockGroup, board: number[][]) => {
   return checkBlockCollision(board, movedBlock) || checkSideCollision(movedBlock);
 }
 
@@ -535,12 +529,24 @@ interface Action {
   apply(s: State): State;
 }
 
+// block moves downwards each tick; speed depends on level
+class Tick implements Action {
+  constructor(private level: number) {}
+
+  apply(s: State): State {
+    if (s.level === this.level) {
+      return new MoveDownwards().apply(s);
+    }
+    return s;
+  }
+}
+
 class Rotate implements Action {
   apply(s: State): State {
     const rotatedBlock = this.rotateBlock(s.currentBlock);
 
     // no wallkicks - only perform rotations that don't result in collisions
-    if (checkToRotate(rotatedBlock, s.boardState)) {
+    if (cantRotate(rotatedBlock, s.boardState)) {
       return s;
     }
     return { ...s, currentBlock: rotatedBlock };
@@ -603,7 +609,7 @@ class MoveSideways implements Action {
 
   apply(s: State): State {
     const movedBlock: BlockGroup = updateBlock(s.currentBlock, this.change);
-    if (checkMoveSideways(movedBlock, s.boardState)) {
+    if (cantMoveSideways(movedBlock, s.boardState)) {
       return s;
     }
     return { ...s, currentBlock: movedBlock };
@@ -621,9 +627,8 @@ class MoveDownwards implements Action {
 
     const movedBlock: BlockGroup = updateBlock(s.currentBlock, moveDown);
 
-    // if there is any collision below the block, stop and move on to the next block
-    // also, check if any rows were cleared and adjust score accordingly
-    if (checkStopBlock(movedBlock, s.boardState)) {
+    // stop moving the block - check if any rows were cleared and adjust score
+    if (cantMoveDown(movedBlock, s.boardState)) {
       const newBoard: number[][] = updateBoard(s.boardState, s.currentBlock);
       const clearedRows: number = this.countClearedRows(newBoard);
       const nextBlock: BlockGroup = getNextBlock();
@@ -646,7 +651,7 @@ class MoveDownwards implements Action {
           level: newLevel,
         };
       } else {
-        // if block stops but no rows were cleared
+        // stop block without clearing rows
         return {
           ...s,
           boardState: newBoard,
@@ -727,34 +732,6 @@ class HoldBlock implements Action {
       heldBlock: currentBlock,
       holdStatus: true,
     };
-  }
-}
-
-// tick classes representing difficulty levels (see line 946)
-class Tick implements Action {
-  apply(s: State): State {
-    if (s.level === 1) {
-      return new MoveDownwards().apply(s);
-    }
-    return s;
-  }
-}
-
-class TickL2 implements Action {
-  apply(s: State): State {
-    if (s.level === 2) {
-      return new MoveDownwards().apply(s);
-    }
-    return s;
-  }
-}
-
-class TickL3 implements Action {
-  apply(s: State): State {
-    if (s.level === 3) {
-      return new MoveDownwards().apply(s);
-    }
-    return s;
   }
 }
 
@@ -847,7 +824,7 @@ const renderboard = (
     row.forEach((square: number, columnIndex: number) => {
       if (board[rowIndex][columnIndex] === 1) {
         svg.appendChild(
-          createBlock(columnIndex, rowIndex, greyStyle, namespace)
+          createBlock(columnIndex, rowIndex, STYLES.grey, namespace)
         );
       }
     })
@@ -933,19 +910,17 @@ export function main() {
       renderPreview(s.heldBlock, holdPreview.namespaceURI, holdPreview);
     }
   };
-
-  // tick streams for the 3 difficulty levels
-  const tick$: Observable<Action> = interval(
-    Constants.TICK_RATE_MS
-    ).pipe(map((_: number) => new Tick()));
-
-  const tick2$: Observable<Action> = interval(
-    Constants.TICK_RATE_MS * 0.8
-  ).pipe(map((_: number) => new TickL2()));
-
-  const tick3$: Observable<Action> = interval(
-    Constants.TICK_RATE_MS * 0.6
-  ).pipe(map((_: number) => new TickL3()));
+  
+  // higher order function to create the various tickstreams
+  function createTickObservable(level: number, tickRateMultiplier: number): Observable<Action> {
+    return interval(Constants.TICK_RATE_MS * tickRateMultiplier).pipe(
+      map((_: number) => new Tick(level))
+    );
+  }
+  
+  const tick$: Observable<Action> = createTickObservable(1, 1);
+  const tick2$: Observable<Action> = createTickObservable(2, 0.8);
+  const tick3$: Observable<Action> = createTickObservable(3, 0.6);
 
   const source$ = merge(
     tick$,
