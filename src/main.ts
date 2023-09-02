@@ -341,10 +341,10 @@ const BlockCoordinates: RotationLookupTable = {
       { x: 5, y: 1 },
     ],
     2: [
+      { x: 3, y: 2 },
       { x: 4, y: 0 },
       { x: 4, y: 1 },
       { x: 4, y: 2 },
-      { x: 5, y: 0 },
     ],
     3: [
       { x: 3, y: 1 },
@@ -353,10 +353,10 @@ const BlockCoordinates: RotationLookupTable = {
       { x: 3, y: 0 },
     ],
     4: [
-      { x: 3, y: 2 },
       { x: 4, y: 0 },
       { x: 4, y: 1 },
       { x: 4, y: 2 },
+      { x: 5, y: 0 },
     ],
   },
   SBLOCK: {
@@ -666,6 +666,7 @@ class MoveDownwards implements Action {
     return board.filter((row) => row.every((block) => block === 1)).length;
   };
 
+  // replace cleared rows with rows of 0's
   replaceClearedRows = (board: number[][], clearedRows: number): number[][] => {
     const clearedBoard = board.filter(
       (row) => !row.every((block) => block === 1)
@@ -735,27 +736,28 @@ class Reset implements Action {
 
 class Drop implements Action {
   apply(s: State): State {
-    const continueDropping = (board: number[][], block: BlockGroup): BlockGroup => {
+    const continueDropping = (
+      board: number[][],
+      block: BlockGroup
+    ): BlockGroup => {
       const newBlock = updateBlock(block, moveDown);
       if (cantMoveDown(newBlock, board)) {
         return block;
       } else {
-        return continueDropping(
-          board,
-          updateBlock(block, moveDown)
-        )
+        return continueDropping(board, updateBlock(block, moveDown));
       }
-    }
+    };
 
+    // recursvely apply downwards movement until collision happens
     return new MoveDownwards().apply({
       ...s,
-      currentBlock: continueDropping(s.boardState, s.currentBlock)
-    })
+      currentBlock: continueDropping(s.boardState, s.currentBlock),
+    });
   }
 }
 
 /*---------------------------------------------------------------------
-|  Rendering (the only section with side effects apart from Math.random())
+|  Rendering (side effects)
 *-------------------------------------------------------------------*/
 /**
  * Displays a SVG element on the canvas. Brings to foreground.
@@ -947,9 +949,12 @@ export function main() {
     );
   }
 
+  // level and multiplier
   const tick$: Observable<Action> = createTickObservable(1, 1);
   const tick2$: Observable<Action> = createTickObservable(2, 0.8);
   const tick3$: Observable<Action> = createTickObservable(3, 0.6);
+
+  // 
   const startNewGame$: Subject<void> = new Subject<void>();
   
   const source$ = merge(
